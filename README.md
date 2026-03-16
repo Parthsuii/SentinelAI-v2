@@ -18,13 +18,46 @@ SentinelAI v3.0 is a next-generation, local, privacy-first web security platform
 - `SentinelAI_v3_Architecture.md`: Detailed technical specification of the v3 upgrade.
 - `monitor (2).py`: Enhanced privacy monitoring and risk assessment script.
 
-## 🧠 Documentation
+## ⚙️ Quick Setup
+
+Follow these steps to get SentinelAI running on your local machine.
+
+### 1. Backend Setup
+1. Navigate to the project folder:
+   ```bash
+   cd "sentinelai-v2"
+   ```
+2. Create and activate a Python Virtual Environment:
+   ```bash
+   python -m venv venv
+   .\venv\Scripts\activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r backend\requirements.txt
+   ```
+
+### 2. Start Redis
+1. Open a new terminal and start the Redis server:
+   ```bash
+   cd "sentinelai-v2\redis"
+   .\redis-server.exe
+   ```
+
+### 3. Start the Backend API
+1. In your initial terminal (with `venv` active), run the server:
+   ```bash
+   python -m uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+### 4. Load the Chrome Extension
+1. Open Chrome and go to `chrome://extensions/`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select the `sentinelai-v2` folder.
+
+## 🏗️ v3 Architecture
 
 For a deep dive into the technical implementation and hardware optimization, see the [SentinelAI v3 Architecture](SentinelAI_v3_Architecture.md).
-
-## ⚙️ Quick Start
-
-Please refer to the setup instructions in the [sentinelai-v2/README.md](sentinelai-v2/README.md) for basic deployment steps. The v3 features are currently being integrated based on the new architecture plan.
 
 ---
 *SentinelAI — Protecting your privacy with Active Intelligence.*
