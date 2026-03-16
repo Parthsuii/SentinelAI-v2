@@ -8,15 +8,23 @@ Combines all agent outputs, computes final risk score, generates explanation, de
 MODEL_NAME = "Qwen2.5-1.5B-Instruct"
 
 AGENT_WEIGHTS = {
-    "url-agent": 0.20,
+    "url-agent": 0.15,
     "content-agent": 0.15,
-    "runtime-agent": 0.30,
+    "runtime-agent": 0.20,
+    "tracker-agent": 0.10,
+    "monitor-analysis": 0.15,
     "exfil-agent": 0.10,
-    "visual-agent": 0.05,
-    "baseline-agent": 0.20
+    "baseline-agent": 0.15
 }
 
 LEVEL_THRESHOLDS = {"safe": 15, "low": 30, "medium": 55, "high": 80}
+SEVERE_THREAT_FLOORS = {
+    "sensitive-third-party-exfil": 85,
+    "sensitive-exfil": 75,
+    "credential-exfil": 65,
+    "third-party-exfil": 55,
+    "session-theft": 70,
+}
 
 
 def compute_verdict(agent_results: dict) -> dict:
@@ -24,6 +32,7 @@ def compute_verdict(agent_results: dict) -> dict:
     composite_score = 0.0
     all_threats = []
     breakdown = {}
+    data_sharing = []
 
     for agent_name, weight in AGENT_WEIGHTS.items():
         result = agent_results.get(agent_name, {})
@@ -40,6 +49,8 @@ def compute_verdict(agent_results: dict) -> dict:
 
         for threat in result.get("threats", []):
             all_threats.append({**threat, "source": agent_name})
+        for share in result.get("data_sharing", []):
+            data_sharing.append({**share, "source": agent_name})
 
     # Add campaign bonus/penalty (not directly in weights, acts as modifier)
     campaign_result = agent_results.get("campaign-agent", {})
@@ -47,6 +58,12 @@ def compute_verdict(agent_results: dict) -> dict:
         composite_score += 25
         for threat in campaign_result.get("threats", []):
             all_threats.append({**threat, "source": "campaign-agent"})
+
+    threat_floor = 0
+    for threat in all_threats:
+        threat_floor = max(threat_floor, SEVERE_THREAT_FLOORS.get(threat.get("type", ""), 0))
+    if threat_floor:
+        composite_score = max(composite_score, threat_floor)
 
     composite_score = min(round(composite_score, 1), 100)
 
@@ -78,6 +95,12 @@ def compute_verdict(agent_results: dict) -> dict:
         "critical": "CRITICAL THREAT! This site is likely malicious. Leave immediately."
     }
 
+    if data_sharing:
+        cross_origin_shares = [d for d in data_sharing if d.get("cross_origin")]
+        if cross_origin_shares:
+            destinations = ", ".join(sorted({d.get("destination", "") for d in cross_origin_shares if d.get("destination")}))
+            recommendations[level] = f"{recommendations[level]} Data is being sent to: {destinations}."
+
     return {
         "agent": "verdict-agent",
         "model": MODEL_NAME,
@@ -86,7 +109,8 @@ def compute_verdict(agent_results: dict) -> dict:
         "action": action,
         "recommendation": recommendations[level],
         "all_threats": all_threats,
-        "agent_breakdown": breakdown
+        "agent_breakdown": breakdown,
+        "data_sharing": data_sharing
     }
 
 

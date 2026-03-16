@@ -8,12 +8,12 @@
 importScripts('./risk-engine.js');
 const riskEngine = new SentinelRiskEngine();
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = 'http://127.0.0.1:8000';
 const MODULE = 'ServiceWorker';
 const BACKEND_TIMEOUTS = {
-  scan: 2500,
+  scan: 30000,
   whitelist: 800,
-  default: 1500
+  default: 5000
 };
 const WHITELIST_CACHE_TTL_MS = 30000;
 
@@ -219,7 +219,7 @@ async function runScan(tabId) {
     state.verdict = {
       compositeScore: 0, level: 'safe', allThreats: [],
       recommendation: 'This site is whitelisted.',
-      agentBreakdown: {}, action: 'allow'
+      agentBreakdown: {}, action: 'allow', dataSharing: []
     };
     updateBadge(tabId, 'safe');
     return;
@@ -234,14 +234,17 @@ async function runScan(tabId) {
   }, BACKEND_TIMEOUTS.scan);
 
   if (result && result.verdict) {
+    const normalizedDataSharing = result.verdict.data_sharing || [];
     state.verdict = {
       compositeScore: result.verdict.composite_score,
       level: result.verdict.level,
+      confidenceInterval: result.verdict.confidenceInterval,
       allThreats: result.verdict.all_threats || [],
       recommendation: result.verdict.recommendation,
       agentBreakdown: result.verdict.agent_breakdown || {},
       action: result.verdict.action,
-      llmExplanation: result.verdict.llm_explanation
+      llmExplanation: result.verdict.llm_explanation,
+      dataSharing: normalizedDataSharing
     };
     state.backendAvailable = true;
     updateBadge(tabId, result.verdict.level);
@@ -249,9 +252,9 @@ async function runScan(tabId) {
     // Log high/critical threats and trigger Shadow DOM overlay
     if (result.verdict.level === 'high' || result.verdict.level === 'critical') {
       console.warn(`[SentinelAI] ⚠️ ${result.verdict.level.toUpperCase()} THREAT on ${state.url}`);
-      chrome.tabs.sendMessage(tabId, { type: 'SENTINEL_SHOW_OVERLAY', verdict: result.verdict }).catch(() => {});
+      chrome.tabs.sendMessage(tabId, { type: 'SENTINEL_SHOW_OVERLAY', verdict: state.verdict }).catch(() => {});
     } else if (result.verdict.level === 'medium') {
-      chrome.tabs.sendMessage(tabId, { type: 'SENTINEL_SHOW_OVERLAY', verdict: result.verdict }).catch(() => {});
+      chrome.tabs.sendMessage(tabId, { type: 'SENTINEL_SHOW_OVERLAY', verdict: state.verdict }).catch(() => {});
     }
   } else {
     // Backend unavailable — run local heuristic fallback
@@ -319,7 +322,8 @@ async function runLocalFallback(tabId) {
     allThreats: threats,
     recommendation: 'Local analysis (backend unavailable).',
     agentBreakdown,
-    action: level === 'critical' || level === 'high' ? 'block' : 'allow'
+    action: level === 'critical' || level === 'high' ? 'block' : 'allow',
+    dataSharing: []
   };
   updateBadge(tabId, level);
 }
@@ -424,7 +428,8 @@ if (chrome.webNavigation && chrome.webNavigation.onBeforeNavigate) {
           compositeScore: scanResult.compositeScore,
           level: scanResult.level,
           recommendation: 'Blocked instantaneously before load.',
-          allThreats: scanResult.urlResult.threats
+          allThreats: scanResult.urlResult.threats,
+          dataSharing: []
         };
       } else {
         console.info(`[SentinelAI] ✓ PRE-SCAN PASSED (${Math.round(performance.now() - startTime)}ms): ${details.url}`);

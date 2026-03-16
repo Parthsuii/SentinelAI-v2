@@ -6,6 +6,7 @@ Purpose: decode obfuscated payloads, analyze Base64 credentials, inspect hidden 
 
 import re
 import base64
+from urllib.parse import urlparse
 
 MODEL_NAME = "Qwen2.5-1.5B-Instruct"
 
@@ -49,17 +50,38 @@ def _contains_sensitive(text: str) -> list:
     return found
 
 
+def _extract_destination(data: dict) -> str:
+    return data.get("destination") or data.get("url") or ""
+
+
+def _normalize_origin(value: str) -> str:
+    if not value:
+        return ""
+    try:
+        parsed = urlparse(value)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    except Exception:
+        return ""
+    return value
+
+
 def analyze_heuristic(events: list) -> dict:
     """Analyze outbound events for data exfiltration."""
     threats = []
     score = 0
+    data_sharing = []
 
     network_events = [e for e in events if e.get("hook") in ("fetch", "xhr", "beacon", "websocket")]
 
     for event in network_events:
         data = event.get("data", {})
         body = data.get("bodyPreview") or data.get("dataPreview") or ""
-        url = data.get("url", "")
+        url = _extract_destination(data)
+        event_origin = _normalize_origin(event.get("origin", ""))
+        destination_origin = _normalize_origin(url)
+        sensitive = _contains_sensitive(body) if body else []
+        shared_record = None
 
         # Base64 payload
         if _is_base64(body):
@@ -67,10 +89,11 @@ def analyze_heuristic(events: list) -> dict:
             score += 20
             threats.append({"type": "base64-exfil", "detail": f"Base64 data sent via {event['hook']}"})
             if decoded:
-                sensitive = _contains_sensitive(decoded)
-                if sensitive:
+                decoded_sensitive = _contains_sensitive(decoded)
+                if decoded_sensitive:
                     score += 25
-                    threats.append({"type": "sensitive-exfil", "detail": f"Decoded payload contains: {', '.join(sensitive)}"})
+                    threats.append({"type": "sensitive-exfil", "detail": f"Decoded payload contains: {', '.join(decoded_sensitive)}"})
+                    sensitive = sorted(set(sensitive + decoded_sensitive))
 
         # Hex payload
         if _is_hex_encoded(body):
@@ -78,11 +101,9 @@ def analyze_heuristic(events: list) -> dict:
             threats.append({"type": "hex-exfil", "detail": f"Hex-encoded data via {event['hook']}"})
 
         # Credentials in body
-        if body:
-            sensitive = _contains_sensitive(body)
-            if sensitive:
-                score += 20
-                threats.append({"type": "credential-exfil", "detail": f"Possible {', '.join(sensitive)} in {event['hook']} body"})
+        if sensitive:
+            score += 20
+            threats.append({"type": "credential-exfil", "detail": f"Possible {', '.join(sensitive)} in {event['hook']} body"})
 
         # Long URL exfiltration
         if len(url) > 500:
@@ -92,22 +113,55 @@ def analyze_heuristic(events: list) -> dict:
                 threats.append({"type": "url-exfil", "detail": "Data smuggled via long encoded URL"})
 
         # Cross-origin data send
-        origin = event.get("origin", "")
-        if url and origin:
-            try:
-                from urllib.parse import urlparse
-                dest_origin = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
-                if dest_origin and dest_origin != origin and body:
-                    score += 10
-                    threats.append({"type": "third-party-exfil", "detail": f"Data sent to {dest_origin}"})
-            except Exception:
-                pass
+        if destination_origin and event_origin and destination_origin != event_origin:
+            shared_record = {
+                "destination": destination_origin,
+                "via": event.get("hook", "network"),
+                "data_types": sensitive,
+                "has_payload": bool(body),
+                "cross_origin": True
+            }
+            if body:
+                score += 10
+                threats.append({"type": "third-party-exfil", "detail": f"Data sent to {destination_origin}"})
+            if sensitive:
+                score += 25
+                threats.append({
+                    "type": "sensitive-third-party-exfil",
+                    "detail": f"Sensitive data ({', '.join(sensitive)}) sent to {destination_origin}"
+                })
+        elif destination_origin:
+            shared_record = {
+                "destination": destination_origin,
+                "via": event.get("hook", "network"),
+                "data_types": sensitive,
+                "has_payload": bool(body),
+                "cross_origin": False
+            }
+
+        if shared_record and shared_record["has_payload"]:
+            data_sharing.append(shared_record)
+
+    deduped_data_sharing = []
+    seen = set()
+    for entry in data_sharing:
+        key = (
+            entry.get("destination", ""),
+            entry.get("via", ""),
+            tuple(entry.get("data_types", [])),
+            entry.get("cross_origin", False)
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped_data_sharing.append(entry)
 
     return {
         "agent": "exfil-agent",
         "model": MODEL_NAME,
         "score": min(score, 100),
-        "threats": threats
+        "threats": threats,
+        "data_sharing": deduped_data_sharing
     }
 
 

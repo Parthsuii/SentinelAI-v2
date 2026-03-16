@@ -10,6 +10,7 @@ import time
 import httpx
 from typing import TypedDict, Optional
 from backend.agents import url_agent, content_agent, runtime_agent, exfil_agent, visual_agent, verdict_agent, tracker_agent, baseline_agent, campaign_agent
+from backend import monitor
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 ORCHESTRATOR_MODEL = "qwen2.5:3b"
@@ -31,6 +32,7 @@ class ScanState(TypedDict):
     tracker_result: Optional[dict]
     baseline_result: Optional[dict]
     campaign_result: Optional[dict]
+    monitor_result: Optional[dict]
     # Final
     verdict: Optional[dict]
     timestamp: float
@@ -109,6 +111,26 @@ async def run_campaign_agent(state: ScanState) -> dict:
     return {"campaign_result": result}
 
 
+async def run_monitor_analysis(state: ScanState) -> dict:
+    """Run Network Monitor Analysis on domains observed in hooks."""
+    domains = []
+    if state.get("hostname"):
+        domains.append(state["hostname"])
+    
+    for e in state.get("hook_events", []):
+        if e.get("hook") in ("fetch", "xhr", "beacon", "websocket"):
+            url = e.get("data", {}).get("url", "")
+            if url:
+                domains.append(url)
+                
+    try:
+        result = monitor.scan_domains(domains)
+    except Exception as e:
+        print(f"[Orchestrator] Monitor Analysis error: {e}")
+        result = {"agent": "monitor-analysis", "score": 0, "threats": []}
+    return {"monitor_result": result}
+
+
 async def run_verdict_agent(state: ScanState) -> dict:
     """Run Verdict Agent (LFM2.5-2B-Thinking) — must run AFTER all other agents."""
     agent_results = {
@@ -120,6 +142,7 @@ async def run_verdict_agent(state: ScanState) -> dict:
         "tracker-agent": state.get("tracker_result", {}),
         "baseline-agent": state.get("baseline_result", {}),
         "campaign-agent": state.get("campaign_result", {}),
+        "monitor-analysis": state.get("monitor_result", {}),
     }
     result = verdict_agent.compute_verdict(agent_results)
     return {"verdict": result}
@@ -145,6 +168,7 @@ async def orchestrate_scan(url: str, hostname: str = "",
         "exfil_result": None,
         "visual_result": None,
         "tracker_result": None,
+        "monitor_result": None,
         "verdict": None,
         "timestamp": time.time()
     }
@@ -176,6 +200,10 @@ async def orchestrate_scan(url: str, hostname: str = "",
     confidence = 0.95 if score == 0 or score > 75 else 0.70
     if baseline_score >= 50:
         confidence = 0.50 # Anomaly drops confidence, forces Tier 2
+        
+    # Always drop confidence if we have runtime network hooks to scan
+    if any(e.get("hook") in ("fetch", "xhr", "beacon", "websocket") for e in state.get("hook_events", [])):
+        confidence = 0.50
     
     if confidence >= 0.92:
         # Tier 1 verdict fired, skip Tier 2
@@ -197,7 +225,8 @@ async def orchestrate_scan(url: str, hostname: str = "",
         run_with_timeout(run_exfil_agent(state), {"exfil_result": {"agent": "exfil-agent", "score": 0, "threats": []}}),
         run_with_timeout(run_visual_agent(state), {"visual_result": {"agent": "visual-agent", "score": 0, "threats": []}}),
         run_with_timeout(run_tracker_agent(state), {"tracker_result": {"agent": "tracker-agent", "score": 0, "threats": []}}),
-        run_with_timeout(run_campaign_agent(state), {"campaign_result": {"agent": "campaign-agent", "score": 0, "campaign_detected": False, "threats": []}})
+        run_with_timeout(run_campaign_agent(state), {"campaign_result": {"agent": "campaign-agent", "score": 0, "campaign_detected": False, "threats": []}}),
+        run_with_timeout(run_monitor_analysis(state), {"monitor_result": {"agent": "monitor-analysis", "score": 0, "threats": []}})
     )
 
     # Merge results into state
@@ -221,5 +250,6 @@ async def quick_scan(url: str) -> dict:
     result = await run_url_agent({"url": url, "hostname": "", "page_signals": None, "hook_events": [], "screenshot_b64": None,
                                    "url_result": None, "content_result": None, "runtime_result": None,
                                    "exfil_result": None, "visual_result": None, "tracker_result": None,
+                                   "monitor_result": None,
                                    "verdict": None, "timestamp": time.time()})
     return result.get("url_result", {})

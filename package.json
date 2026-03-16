@@ -4,6 +4,7 @@
   "description": "SentinelAI v2.0 — Active Runtime Intelligence Edition",
   "private": true,
   "scripts": {
-    "icons": "node scripts/generate-icons.js"
+    "icons": "node scripts/generate-icons.js",
+    "monitor": "python scripts/privacy_monitor.py"
   }
 }

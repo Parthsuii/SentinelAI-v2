@@ -6,6 +6,9 @@ CORS enabled for Chrome extension communication.
 
 import time
 import asyncio
+import os
+import subprocess
+import sys
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -264,6 +267,28 @@ async def startup():
     loop = asyncio.get_running_loop()
     loop.run_in_executor(None, preload_models)
     
+    # Launch monitor.py with the same interpreter and UTF-8 output so the
+    # child process doesn't crash on Windows console encoding.
+    monitor_path = os.path.join(os.path.dirname(__file__), "monitor.py")
+    monitor_stdout_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "monitor_stdout.log")
+    monitor_stderr_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "monitor_stderr.log")
+    monitor_env = os.environ.copy()
+    monitor_env["PYTHONIOENCODING"] = "utf-8"
+
+    try:
+        monitor_stdout = open(monitor_stdout_path, "a", encoding="utf-8")
+        monitor_stderr = open(monitor_stderr_path, "a", encoding="utf-8")
+        subprocess.Popen(
+            [sys.executable, monitor_path],
+            env=monitor_env,
+            stdout=monitor_stdout,
+            stderr=monitor_stderr,
+            cwd=os.path.dirname(os.path.dirname(__file__)),
+        )
+        print(f"[Startup] Monitor process launched via {sys.executable}")
+    except Exception as e:
+        print(f"[Startup] Monitor launch warning: {e}")
+
     from backend.threat_cache import start_background_updater, update_feeds
     start_background_updater()
     asyncio.create_task(update_feeds())

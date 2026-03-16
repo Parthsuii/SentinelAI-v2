@@ -145,6 +145,12 @@
     const isBlock = verdict.level === 'critical' || verdict.level === 'high';
     const bgColor = isBlock ? 'rgba(20, 0, 0, 0.95)' : 'rgba(255, 170, 0, 0.9)';
     const textColor = isBlock ? '#ff5252' : '#ffffff';
+    const dataSharing = verdict.dataSharing || verdict.data_sharing || [];
+    const destinations = dataSharing
+      .filter(entry => entry.destination)
+      .map(entry => entry.destination)
+      .slice(0, 3)
+      .join(', ');
     
     shadow.innerHTML = `
       <style>
@@ -174,7 +180,8 @@
           <p>${verdict.recommendation || 'SentinelAI has detected significant risk factors on this page.'}</p>
           <div class="details">
             <strong>Risk Score:</strong> ${verdict.compositeScore || verdict.composite_score}${verdict.confidenceInterval ? ` &plusmn; ${verdict.confidenceInterval}` : ''}/100<br>
-            <strong>Top Threat:</strong> ${verdict.allThreats?.[0]?.detail || verdict.all_threats?.[0]?.detail || 'Unknown'}
+            <strong>Top Threat:</strong> ${verdict.allThreats?.[0]?.detail || verdict.all_threats?.[0]?.detail || 'Unknown'}<br>
+            <strong>Data Sharing:</strong> ${destinations || 'No outbound destination captured'}
           </div>
           <button id="btn-goback">Go Back to Safety</button>
           ${isBlock ? '' : '<button id="btn-proceed" class="secondary">Proceed Anyway</button>'}

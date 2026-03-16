@@ -13,6 +13,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const urlLock = document.getElementById('url-lock');
   const threatsList = document.getElementById('threats-list');
   const threatCount = document.getElementById('threat-count');
+  const dataSharingList = document.getElementById('data-sharing-list');
+  const dataSharingCount = document.getElementById('data-sharing-count');
   const agentBars = document.getElementById('agent-bars');
   const hookEventCount = document.getElementById('hook-event-count');
   const btnRescan = document.getElementById('btn-rescan');
@@ -109,6 +111,31 @@ document.addEventListener('DOMContentLoaded', async () => {
       }).join('');
     }
 
+    // Data sharing destinations
+    const dataSharing = verdict.dataSharing || [];
+    dataSharingCount.textContent = dataSharing.length;
+    dataSharingCount.className = 'threat-count' + (dataSharing.length === 0 ? ' safe' : '');
+
+    if (dataSharing.length === 0) {
+      dataSharingList.innerHTML = '<div class="empty-state">No outbound data sharing detected</div>';
+    } else {
+      dataSharingList.innerHTML = dataSharing.slice(0, 6).map(entry => {
+        const dataTypes = (entry.data_types || []).length ? (entry.data_types || []).join(', ') : 'payload observed';
+        const shareClass = entry.cross_origin ? 'critical' : 'medium';
+        const directionLabel = entry.cross_origin ? 'third-party destination' : 'same-site destination';
+        return `
+          <div class="threat-card">
+            <div class="threat-dot ${shareClass}"></div>
+            <div class="threat-info">
+              <div class="threat-type">${escapeHtml(entry.destination || 'Unknown destination')}</div>
+              <div class="threat-detail">${escapeHtml(dataTypes)} via ${escapeHtml(entry.via || 'network')}</div>
+              <div class="threat-source">${escapeHtml(directionLabel)}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
     // Agent breakdown
     if (verdict.agentBreakdown) {
       for (const [agentName, data] of Object.entries(verdict.agentBreakdown)) {
@@ -151,7 +178,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnRescan.textContent = 'Scanning...';
 
     try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'SENTINEL_GET_PAGE_SIGNALS' });
+      const signals = await chrome.tabs.sendMessage(tab.id, { type: 'SENTINEL_GET_PAGE_SIGNALS' });
+      if (signals) {
+        await chrome.runtime.sendMessage({
+          type: 'SENTINEL_SCAN_REQUEST',
+          payload: signals
+        });
+      }
     } catch(e) { /* ignore */ }
 
     setTimeout(() => {
