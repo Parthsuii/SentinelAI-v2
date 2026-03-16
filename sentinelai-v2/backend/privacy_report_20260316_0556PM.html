@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Report — 16 March 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:        #0a0d12;
+    --surface:   #111520;
+    --surface2:  #181d2a;
+    --border:    #1e2535;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --accent:    #38bdf8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    border-bottom: 1px solid #2d3560;
+    padding: 48px 40px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #f1f5f9;
+  }
+  .header h1 span { color: var(--accent); }
+  .header-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 6px;
+    line-height: 1.8;
+  }
+  .score-badge {
+    text-align: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 32px;
+    min-width: 160px;
+  }
+  .score-num {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .score-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .section { margin-top: 40px; }
+  .section-title {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── Stat Cards ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-top: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card .num {
+    font-size: 2.4rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    line-height: 1;
+  }
+  .stat-card .lbl {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .stat-critical { border-top: 3px solid #ef4444; }
+  .stat-high     { border-top: 3px solid #f97316; }
+  .stat-medium   { border-top: 3px solid #eab308; }
+  .stat-low      { border-top: 3px solid #22c55e; }
+  .stat-total    { border-top: 3px solid var(--accent); }
+
+  /* ── Chart ── */
+  .chart-row {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 24px;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 16px;
+  }
+  @media (max-width: 600px) {
+    .chart-row { grid-template-columns: 1fr; }
+  }
+  .chart-legend { display: flex; flex-direction: column; gap: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-count {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  /* ── Tracker Cards ── */
+  .tracker-card {
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 14px;
+    transition: transform 0.15s;
+  }
+  .tracker-card:hover { transform: translateX(4px); }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .risk-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    color: #0a0d12;
+    margin-bottom: 6px;
+  }
+  .tracker-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+  }
+  .card-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .card-meta {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .meta-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .meta-value { font-size: 0.88rem; font-weight: 600; }
+  .domain-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem !important;
+    color: var(--accent) !important;
+  }
+  .card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 600px) { .card-body { grid-template-columns: 1fr; } }
+  .section-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .data-list {
+    list-style: none;
+    font-size: 0.85rem;
+    line-height: 1.8;
+  }
+  .data-list li::before { content: '• '; opacity: 0.6; }
+  .block-tip {
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #cbd5e1;
+  }
+  .btn-row { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .action-btn {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+  .action-btn:hover { opacity: 0.8; }
+  .delete-btn { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+
+  /* ── Recommendations ── */
+  .rec-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+  .rec-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  .rec-item a { color: var(--accent); }
+  .rec-num {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface2);
+  }
+  .rec-critical .rec-num { background: #450a0a; color: #ef4444; }
+  .rec-high .rec-num     { background: #431407; color: #f97316; }
+  .rec-low .rec-num      { background: #052e16; color: #22c55e; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 60px;
+    padding: 24px 40px;
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+  }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .stat-card, .tracker-card, .rec-item {
+    animation: fadeUp 0.4s ease both;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="container">
+    <div class="header-top">
+      <div>
+        <h1>🔍 Privacy <span>Report</span></h1>
+        <div class="header-meta">
+          📅 16 March 2026 &nbsp;·&nbsp; 🕐 Started 05:56 PM &nbsp;·&nbsp;
+          ⏱ Duration 9m 27s &nbsp;·&nbsp;
+          🌐 0 domains contacted
+        </div>
+      </div>
+      <div class="score-badge">
+        <div class="score-num" style="color:#22c55e">10/10</div>
+        <div class="score-label">Privacy Score</div>
+        <div style="font-size:0.7rem;margin-top:4px;color:#22c55e">Excellent</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- STATS -->
+  <div class="section">
+    <div class="section-title">Session Overview</div>
+    <div class="stats-grid">
+      <div class="stat-card stat-total">
+        <div class="num" style="color:var(--accent)">0</div>
+        <div class="lbl">Trackers Found</div>
+      </div>
+      <div class="stat-card stat-critical">
+        <div class="num" style="color:#ef4444">0</div>
+        <div class="lbl">Critical Risk</div>
+      </div>
+      <div class="stat-card stat-high">
+        <div class="num" style="color:#f97316">0</div>
+        <div class="lbl">High Risk</div>
+      </div>
+      <div class="stat-card stat-medium">
+        <div class="num" style="color:#eab308">0</div>
+        <div class="lbl">Medium Risk</div>
+      </div>
+      <div class="stat-card stat-low">
+        <div class="num" style="color:#22c55e">0</div>
+        <div class="lbl">Low Risk</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="section">
+    <div class="section-title">Risk Breakdown</div>
+    <div class="chart-row">
+      <canvas id="pieChart" width="220" height="220"></canvas>
+      <div class="chart-legend">
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#ef4444"></div>
+          <span>Critical Risk</span>
+          <span class="legend-count">0 tracker(s)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#f97316"></div>
+          <span>High Risk</span>
+          <span class="legend-count">0 tracker(s)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#eab308"></div>
+          <span>Medium Risk</span>
+          <span class="legend-count">0 tracker(s)</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot" style="background:#22c55e"></div>
+          <span>Low Risk</span>
+          <span class="legend-count">0 tracker(s)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+
+  <!-- TRACKER CARDS -->
+  <div class="section">
+    <div class="section-title">Trackers Detected (0)</div>
+    <p style="color:var(--muted);padding:20px 0">✅ No trackers detected this session.</p>
+  </div>
+
+  <!-- RECOMMENDATIONS -->
+  <div class="section">
+    <div class="section-title">What You Should Do</div>
+    <div class="rec-grid">
+          <div class="rec-item rec-low">
+            <span class="rec-num">1</span>
+            <div><strong>Install uBlock Origin for basic protection</strong><br>
+            <a href="https://ublockorigin.com" target="_blank">https://ublockorigin.com</a></div>
+          </div></div>
+    <div class="rec-item" style="margin-top:12px;border-color:#1e2535">
+      <span class="rec-num" style="background:#0c1a2e;color:var(--accent)">🛡</span>
+      <div><strong>Block trackers on ALL your devices at once</strong><br>
+      Set up Pi-hole on your Wi-Fi router — free, blocks everything network-wide.<br>
+      <a href="https://docs.pi-hole.net/main/basic-install/" target="_blank">
+      https://docs.pi-hole.net/main/basic-install/</a></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  Generated by AI Privacy Monitor &nbsp;·&nbsp;
+  16 March 2026 05:56 PM &nbsp;·&nbsp;
+  This report is private and stored only on your device.
+</div>
+
+<script>
+const data = [0, 0, 0, 0];
+const ctx  = document.getElementById('pieChart').getContext('2d');
+new Chart(ctx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Critical', 'High', 'Medium', 'Low'],
+    datasets: [{
+      data: data,
+      backgroundColor: ['#ef4444','#f97316','#eab308','#22c55e'],
+      borderColor: '#0a0d12',
+      borderWidth: 3,
+      hoverOffset: 8,
+    }]
+  },
+  options: {
+    responsive: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.parsed} tracker(s)`
+        }
+      }
+    },
+    cutout: '68%',
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "sentinelai-v2",
+  "version": "2.0.0",
+  "description": "SentinelAI v2.0 — Active Runtime Intelligence Edition",
+  "private": true,
+  "scripts": {
+    "icons": "node scripts/generate-icons.js",
+    "monitor": "python scripts/privacy_monitor.py"
+  }
+}
