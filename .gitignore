@@ -1,0 +1,32 @@
+# Environments
+venv/
+.env
+
+# Logs
+*.log
+backend_stdout.log
+backend_stderr.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Extension builds
+build/
+dist/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Data and Models
+data/
+models/
+*.gguf
+*.bin

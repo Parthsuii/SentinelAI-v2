@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+redis
+chromadb
+langgraph
+langchain-core
+sqlite-utils
+python-dotenv
+sentence-transformers
+websockets

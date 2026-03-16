@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Blocked - SentinelAI v2.0</title>
+    <style>
+        :root {
+            --bg-danger: #110000;
+            --card-bg: #1e1e1e;
+            --text-primary: #ffffff;
+            --text-secondary: #aaaaaa;
+            --accent-danger: #ff5252;
+            --accent-warning: #ffb74d;
+        }
+
+        body {
+            background-color: var(--bg-danger);
+            color: var(--text-primary);
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: 16px;
+            border: 2px solid var(--accent-danger);
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 20px 50px rgba(255, 0, 0, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 6px;
+            background: var(--accent-danger);
+        }
+
+        .icon {
+            font-size: 64px;
+            margin-bottom: 1rem;
+            display: inline-block;
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        h1 {
+            color: var(--accent-danger);
+            margin: 0 0 1rem 0;
+            font-size: 2.5rem;
+        }
+
+        p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .details-box {
+            background: #000000;
+            border-left: 4px solid var(--accent-danger);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: left;
+            margin-bottom: 2rem;
+            font-family: ui-monospace, 'Cascadia Code', monospace;
+            font-size: 0.95rem;
+        }
+
+        .details-box span {
+            color: var(--text-secondary);
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .details-box .highlight {
+            color: var(--text-primary);
+            font-weight: bold;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent-danger);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            background: #ff3333;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid #444;
+        }
+
+        .btn-secondary:hover {
+            color: var(--text-primary);
+            border-color: var(--text-primary);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.1); filter: brightness(1.2); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">🛑</div>
+        <h1>Access Blocked</h1>
+        <p>SentinelAI intercepted this connection before the page could load. We identified critical threats indicating this site is unsafe.</p>
+        
+        <div class="details-box">
+            <span><strong class="highlight">Blocked URL:</strong> <span id="target-url">Loading...</span></span>
+            <span><strong class="highlight">Risk Score:</strong> <span id="risk-score" style="color: var(--accent-danger);">Loading...</span>/100</span>
+            <span><strong class="highlight">Primary Threat:</strong> <span id="primary-threat">Loading...</span></span>
+        </div>
+
+        <div class="btn-container">
+            <button class="btn-primary" id="btn-back">Return to Safety</button>
+            <button class="btn-secondary" id="btn-proceed">Proceed Anyway (Unsafe)</button>
+        </div>
+    </div>
+
+    <script src="blocked.js"></script>
+</body>
+</html>
