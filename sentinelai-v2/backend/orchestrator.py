@@ -12,7 +12,6 @@ from typing import TypedDict, Optional
 from backend.agents import url_agent, content_agent, runtime_agent, exfil_agent, visual_agent, verdict_agent, tracker_agent, baseline_agent, campaign_agent
 from backend import monitor
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
 ORCHESTRATOR_MODEL = "qwen2.5:3b"
 
 
@@ -36,6 +35,25 @@ class ScanState(TypedDict):
     # Final
     verdict: Optional[dict]
     timestamp: float
+
+
+def _has_meaningful_page_signals(page_signals: Optional[dict]) -> bool:
+    """Return True when we have enough page evidence to justify a deep scan."""
+    if not page_signals:
+        return False
+
+    signal_keys = (
+        "forms",
+        "links",
+        "scripts",
+        "meta",
+        "bodyTextPreview",
+        "externalLinkCount",
+        "scriptCount",
+        "inlineScriptCount",
+        "title",
+    )
+    return any(page_signals.get(key) for key in signal_keys)
 
 
 async def run_url_agent(state: ScanState) -> dict:
@@ -104,10 +122,7 @@ async def run_baseline_agent(state: ScanState) -> dict:
 async def run_campaign_agent(state: ScanState) -> dict:
     """Run Campaign Agent (Tier 2)."""
     ip = state.get("page_signals", {}).get("ip") if state.get("page_signals") else None
-    if not ip and state.get("hostname"):
-        # Dummy IP for demonstration/cache matches
-        ip = "127.0.0.1"
-    result = campaign_agent.analyze_campaign(ip)
+    result = campaign_agent.analyze_campaign(ip, state.get("hostname", ""))
     return {"campaign_result": result}
 
 
@@ -116,18 +131,33 @@ async def run_monitor_analysis(state: ScanState) -> dict:
     domains = []
     if state.get("hostname"):
         domains.append(state["hostname"])
+
+    for domain in (state.get("page_signals", {}) or {}).get("outboundDomains", []):
+        if domain:
+            domains.append(domain)
     
     for e in state.get("hook_events", []):
         if e.get("hook") in ("fetch", "xhr", "beacon", "websocket"):
             url = e.get("data", {}).get("url", "")
             if url:
                 domains.append(url)
+
+    if len(domains) > 8:
+        domains = domains[:8]
                 
     try:
         result = monitor.scan_domains(domains)
     except Exception as e:
         print(f"[Orchestrator] Monitor Analysis error: {e}")
-        result = {"agent": "monitor-analysis", "score": 0, "threats": []}
+        result = {
+            "agent": "monitor-analysis",
+            "score": 0,
+            "threats": [],
+            "data_sharing": [],
+            "blocking_tips": [],
+            "domain_locations": {},
+            "primary_location": "Unknown"
+        }
     return {"monitor_result": result}
 
 
@@ -145,6 +175,19 @@ async def run_verdict_agent(state: ScanState) -> dict:
         "monitor-analysis": state.get("monitor_result", {}),
     }
     result = verdict_agent.compute_verdict(agent_results)
+    monitor_result = state.get("monitor_result", {}) or {}
+    result["privacy_monitor"] = {
+        "agent": "monitor-analysis",
+        "score": monitor_result.get("score", 0),
+        "summary": {
+            "destination_count": len(monitor_result.get("data_sharing", [])),
+            "primary_location": monitor_result.get("primary_location", "Unknown"),
+        },
+        "destinations": monitor_result.get("data_sharing", []),
+        "domain_locations": monitor_result.get("domain_locations", {}),
+        "blocking_tips": monitor_result.get("blocking_tips", []),
+        "threats": monitor_result.get("threats", []),
+    }
     return {"verdict": result}
 
 
@@ -168,27 +211,20 @@ async def orchestrate_scan(url: str, hostname: str = "",
         "exfil_result": None,
         "visual_result": None,
         "tracker_result": None,
+        "baseline_result": None,
+        "campaign_result": None,
         "monitor_result": None,
         "verdict": None,
         "timestamp": time.time()
     }
 
-    # Step 1: Run all 6 analysis agents (with 5-second timeout per agent to prevent blocking)
-    async def run_with_timeout(coro, fallback_result):
-        try:
-            return await asyncio.wait_for(coro, timeout=5.0)
-        except asyncio.TimeoutError:
-            print(f"[Orchestrator] Agent timeout, using fallback")
-            return fallback_result
-        except Exception as e:
-            print(f"[Orchestrator] Agent error: {e}")
-            return fallback_result
+    # Step 1: Run all 6 analysis agents
 
     # Step 1: Tier 1 Lightning Scan
     # We run URL agent and baseline checks here
     tier1_results = await asyncio.gather(
-        run_with_timeout(run_url_agent(state), {"url_result": url_agent.analyze_heuristic(state["url"])}),
-        run_with_timeout(run_baseline_agent(state), {"baseline_result": {"agent": "baseline-agent", "score": 0, "anomalous": False, "threats": []}})
+        run_url_agent(state),
+        run_baseline_agent(state)
     )
     for r in tier1_results:
         state.update(r)
@@ -196,14 +232,19 @@ async def orchestrate_scan(url: str, hostname: str = "",
     score = state["url_result"].get("score", 0)
     baseline_score = state.get("baseline_result", {}).get("score", 0)
     
+    has_page_evidence = _has_meaningful_page_signals(state.get("page_signals"))
+    has_hook_evidence = bool(state.get("hook_events"))
+    has_screenshot = bool(state.get("screenshot_b64"))
+    should_run_deep_scan = has_page_evidence or has_hook_evidence or has_screenshot
+
     # Confidence threshold logic router
-    confidence = 0.95 if score == 0 or score > 75 else 0.70
+    confidence = 0.95 if (score == 0 and not should_run_deep_scan) or score > 75 else 0.70
     if baseline_score >= 50:
-        confidence = 0.50 # Anomaly drops confidence, forces Tier 2
-        
-    # Always drop confidence if we have runtime network hooks to scan
-    if any(e.get("hook") in ("fetch", "xhr", "beacon", "websocket") for e in state.get("hook_events", [])):
-        confidence = 0.50
+        confidence = 0.50  # Anomaly drops confidence, forces Tier 2
+
+    # Always drop confidence if we have runtime network hooks or any richer evidence to analyze
+    if should_run_deep_scan:
+        confidence = min(confidence, 0.50)
     
     if confidence >= 0.92:
         # Tier 1 verdict fired, skip Tier 2
@@ -214,19 +255,26 @@ async def orchestrate_scan(url: str, hostname: str = "",
             "confidenceInterval": 5, # Highly confident
             "all_threats": state["url_result"].get("threats", []) + state.get("baseline_result", {}).get("threats", []),
             "recommendation": "Decided by Tier 1 Lightning Scan",
-            "agent_breakdown": {"url-agent": {"rawScore": score}}
+            "agent_breakdown": {
+                "url-agent": {"rawScore": score},
+                "baseline-agent": {"rawScore": baseline_score}
+            },
+            "action": "block" if level in ("critical", "high") else "warn" if level == "medium" else "allow",
+            "data_sharing": state["url_result"].get("data_sharing", []),
+            "blocking_tips": state["url_result"].get("blocking_tips", []),
+            "scan_mode": "tier1"
         }
         return state
 
     # Step 2: Tier 2 Deep Scan
     results = await asyncio.gather(
-        run_with_timeout(run_content_agent(state), {"content_result": {"agent": "content-agent", "score": 0, "threats": []}}),
-        run_with_timeout(run_runtime_agent(state), {"runtime_result": {"agent": "runtime-agent", "score": 0, "threats": []}}),
-        run_with_timeout(run_exfil_agent(state), {"exfil_result": {"agent": "exfil-agent", "score": 0, "threats": []}}),
-        run_with_timeout(run_visual_agent(state), {"visual_result": {"agent": "visual-agent", "score": 0, "threats": []}}),
-        run_with_timeout(run_tracker_agent(state), {"tracker_result": {"agent": "tracker-agent", "score": 0, "threats": []}}),
-        run_with_timeout(run_campaign_agent(state), {"campaign_result": {"agent": "campaign-agent", "score": 0, "campaign_detected": False, "threats": []}}),
-        run_with_timeout(run_monitor_analysis(state), {"monitor_result": {"agent": "monitor-analysis", "score": 0, "threats": []}})
+        run_content_agent(state),
+        run_runtime_agent(state),
+        run_exfil_agent(state),
+        run_visual_agent(state),
+        run_tracker_agent(state),
+        run_campaign_agent(state),
+        run_monitor_analysis(state)
     )
 
     # Merge results into state
@@ -238,9 +286,21 @@ async def orchestrate_scan(url: str, hostname: str = "",
     verdict_result = await run_verdict_agent(state)
     state.update(verdict_result)
     
-    # Add deep scan confidence interval
+    # Add deep scan metadata
     if "verdict" in state and isinstance(state["verdict"], dict):
-        state["verdict"]["confidenceInterval"] = 12 # Less confident due to ambiguity
+        state["verdict"]["scan_mode"] = "tier2"
+        
+        # v3: Learning step — Update IP reputation if verdict is high confidence
+        final_score = state["verdict"].get("composite_score", 0)
+        from backend.main import persistent
+        ip = state.get("page_signals", {}).get("ip") if state.get("page_signals") else None
+        if ip and ip != "127.0.0.1" and final_score > 50:
+            existing_rep = persistent.get_reputation(ip) or {"risk_score": 0, "malicious_siblings": []}
+            new_score = (existing_rep["risk_score"] + final_score) / 2 if existing_rep["risk_score"] > 0 else final_score
+            siblings = existing_rep["malicious_siblings"]
+            if state["hostname"] not in siblings:
+                siblings.append(state["hostname"])
+            persistent.update_reputation(ip, new_score, siblings)
 
     return state
 
@@ -250,6 +310,7 @@ async def quick_scan(url: str) -> dict:
     result = await run_url_agent({"url": url, "hostname": "", "page_signals": None, "hook_events": [], "screenshot_b64": None,
                                    "url_result": None, "content_result": None, "runtime_result": None,
                                    "exfil_result": None, "visual_result": None, "tracker_result": None,
+                                   "baseline_result": None, "campaign_result": None,
                                    "monitor_result": None,
                                    "verdict": None, "timestamp": time.time()})
     return result.get("url_result", {})

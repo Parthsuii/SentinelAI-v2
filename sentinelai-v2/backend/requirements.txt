@@ -9,4 +9,15 @@ langchain-core
 sqlite-utils
 python-dotenv
 sentence-transformers
+transformers
+torch
+accelerate
+bitsandbytes
 websockets
+flask
+flask-socketio
+flask-cors
+eventlet
+colorama
+cryptography
+rich

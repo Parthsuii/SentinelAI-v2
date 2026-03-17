@@ -11,6 +11,7 @@ import subprocess
 import sys
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -32,6 +33,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Static Files ──
+# Mount dashboard and popup for unified access
+root_dir = os.path.dirname(os.path.dirname(__file__))
+app.mount("/dashboard", StaticFiles(directory=os.path.join(root_dir, "dashboard"), html=True), name="dashboard")
+app.mount("/popup", StaticFiles(directory=os.path.join(root_dir, "popup"), html=True), name="popup")
 
 # ── Storage Init ──
 ephemeral = EphemeralStore()
@@ -97,6 +104,8 @@ async def scan(req: ScanRequest):
         verdict = result.get("verdict", {})
 
         # Store in persistent storage
+        monitor_result = result.get("monitor_result") or {}
+        location_info = monitor_result.get("location_info")
         persistent.save_scan(
             url=req.url,
             hostname=req.hostname,
@@ -104,7 +113,8 @@ async def scan(req: ScanRequest):
             level=verdict.get("level", "unknown"),
             threat_count=len(verdict.get("all_threats", [])),
             threats=verdict.get("all_threats", []),
-            agent_breakdown=verdict.get("agent_breakdown", {})
+            agent_breakdown=verdict.get("agent_breakdown", {}),
+            location_info=location_info
         )
 
         # Store ephemeral event
@@ -113,6 +123,7 @@ async def scan(req: ScanRequest):
         return {
             "url": req.url,
             "verdict": verdict,
+            "privacy_monitor": verdict.get("privacy_monitor", {}),
             "agent_results": {
                 "url": result.get("url_result"),
                 "content": result.get("content_result"),
@@ -120,6 +131,7 @@ async def scan(req: ScanRequest):
                 "exfil": result.get("exfil_result"),
                 "visual": result.get("visual_result"),
                 "tracker": result.get("tracker_result"),
+                "monitor": result.get("monitor_result"),
             },
             "timestamp": time.time()
         }
