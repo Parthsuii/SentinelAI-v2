@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SentinelAI v2.0 — Dashboard</title>
+  <title>SentinelAI v3.0 — Dashboard</title>
   <link rel="stylesheet" href="dashboard.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 </head>
@@ -27,7 +27,7 @@
         </svg>
         <div>
           <div class="brand-name">SentinelAI</div>
-          <div class="brand-version">v2.0 Dashboard</div>
+          <div class="brand-version">v3.0 Dashboard</div>
         </div>
       </div>
 
@@ -61,7 +61,7 @@
       <div class="sidebar-footer">
         <div class="hook-status">
           <span class="status-dot active"></span>
-          <span>12 Hooks Active</span>
+          <span>18 Hooks Active</span>
         </div>
       </div>
     </nav>
@@ -72,7 +72,7 @@
       <div class="tab-content active" id="tab-overview">
         <div class="page-header">
           <h2>Security Overview</h2>
-          <p class="page-subtitle">Real-time Active Runtime Intelligence</p>
+          <p class="page-subtitle">Behavioral Anomaly & Campaign Intelligence — v3.0</p>
         </div>
 
         <!-- Stats Grid -->
@@ -166,7 +166,10 @@
       <div class="tab-content" id="tab-agents">
         <div class="page-header">
           <h2>AI Agent Pool</h2>
-          <p class="page-subtitle">6 specialized agents analyzing every page</p>
+          <p class="page-subtitle">7 security layers plus a separate privacy monitor</p>
+          <div class="location-context" id="current-location-context">
+            <!-- Populated by JS -->
+          </div>
         </div>
         <div class="agents-grid">
           <div class="agent-card">
@@ -190,10 +193,10 @@
           <div class="agent-card">
             <div class="agent-card-icon runtime">⚡</div>
             <h4>Runtime Agent</h4>
-            <p>Analyzes 12 runtime hook events — the core intelligence layer</p>
+            <p>Analyzes 18 runtime hook events — the core intelligence layer</p>
             <div class="agent-card-meta">
-              <span class="agent-weight">Weight: 30%</span>
-              <span class="agent-model">Phi-4-mini</span>
+              <span class="agent-weight">Weight: 20%</span>
+              <span class="agent-model">Phi-3.5-mini</span>
             </div>
           </div>
           <div class="agent-card">
@@ -201,8 +204,8 @@
             <h4>Visual Agent</h4>
             <p>Screenshot-based phishing detection, brand logo matching</p>
             <div class="agent-card-meta">
-              <span class="agent-weight">Weight: 15%</span>
-              <span class="agent-model">Vision Model</span>
+              <span class="agent-weight">Weight: 10%</span>
+              <span class="agent-model">SigLIP-2</span>
             </div>
           </div>
           <div class="agent-card">
@@ -210,17 +213,44 @@
             <h4>Exfil Agent</h4>
             <p>Decodes obfuscated payloads, detects credential exfiltration</p>
             <div class="agent-card-meta">
-              <span class="agent-weight">Weight: 15%</span>
+              <span class="agent-weight">Weight: 10%</span>
               <span class="agent-model">Qwen2.5-1.5B</span>
             </div>
           </div>
           <div class="agent-card">
+            <div class="agent-card-icon baseline">🧠</div>
+            <h4>Baseline Agent</h4>
+            <p>Personalized behavior profiling and anomaly detection</p>
+            <div class="agent-card-meta">
+              <span class="agent-weight">Weight: 10%</span>
+              <span class="agent-model">Tier 1 Memory</span>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-card-icon campaign">🌐</div>
+            <h4>Campaign Agent</h4>
+            <p>Cross-site threat correlation via IP/Infrastructure grouping</p>
+            <div class="agent-card-meta">
+              <span class="agent-weight">Weight: 10%</span>
+              <span class="agent-model">Reputation Layer</span>
+            </div>
+          </div>
+          <div class="agent-card">
+            <div class="agent-card-icon threat-intel">🛡️</div>
+            <h4>Monitor Agent</h4>
+            <p>Separate privacy-routing report for data destinations, laws, and locations</p>
+            <div class="agent-card-meta">
+              <span class="agent-weight">Not in risk score</span>
+              <span class="agent-model">Monitor(2).py</span>
+            </div>
+          </div>
+          <div class="agent-card">
             <div class="agent-card-icon orchestrator">🎯</div>
-            <h4>Orchestrator</h4>
-            <p>Aggregates all agent scores using weighted risk matrix</p>
+            <h4>Ensemble Verdict</h4>
+            <p>Aggregates the 7 core security layers using weighted risk matrix</p>
             <div class="agent-card-meta">
               <span class="agent-weight">Aggregator</span>
-              <span class="agent-model">Rule-based</span>
+              <span class="agent-model">v3.0 Voting</span>
             </div>
           </div>
         </div>
@@ -228,21 +258,27 @@
         <!-- Runtime Hooks -->
         <div class="section-card" style="margin-top: 24px;">
           <div class="section-header">
-            <h3>12 Runtime Hooks</h3>
+            <h3>18 Runtime Hooks</h3>
           </div>
           <div class="hooks-grid">
-            <div class="hook-chip">fetch()</div>
-            <div class="hook-chip">XMLHttpRequest</div>
+            <div class="hook-chip">fetch() / XHR</div>
             <div class="hook-chip">eval() / Function()</div>
-            <div class="hook-chip">document.write / innerHTML</div>
+            <div class="hook-chip">document.write</div>
             <div class="hook-chip">MutationObserver</div>
             <div class="hook-chip">sendBeacon()</div>
             <div class="hook-chip">WebSocket</div>
             <div class="hook-chip">postMessage</div>
             <div class="hook-chip">Form Submit</div>
             <div class="hook-chip">Clipboard API</div>
+            <div class="hook-chip">Credentials API</div>
+            <div class="hook-chip">Service Worker</div>
+            <div class="hook-chip">Redirect chain</div>
             <div class="hook-chip">Canvas / WebGL</div>
-            <div class="hook-chip">setTimeout / setInterval</div>
+            <div class="hook-chip">CSS Clickjacking</div>
+            <div class="hook-chip">Geo-location</div>
+            <div class="hook-chip">History API</div>
+            <div class="hook-chip">Notification API</div>
+            <div class="hook-chip">WebRTC</div>
           </div>
         </div>
       </div>
@@ -258,7 +294,7 @@
           <div class="setting-item">
             <div class="setting-info">
               <h4>Active Runtime Monitoring</h4>
-              <p>Enable all 12 runtime hooks on every page</p>
+              <p>Enable all 18 runtime hooks on every page</p>
             </div>
             <label class="toggle">
               <input type="checkbox" id="setting-hooks" checked>

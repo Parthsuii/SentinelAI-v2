@@ -9,9 +9,61 @@
   window.__sentinel_content_ready = true;
 
   const MODULE = 'ContentScript';
+  const PAGE_HOOK_FILES = [
+    'content/hooks/fetch-hook.js',
+    'content/hooks/xhr-hook.js',
+    'content/hooks/eval-hook.js',
+    'content/hooks/dom-write-hook.js',
+    'content/hooks/mutation-hook.js',
+    'content/hooks/beacon-hook.js',
+    'content/hooks/websocket-hook.js',
+    'content/hooks/postmessage-hook.js',
+    'content/hooks/form-hook.js',
+    'content/hooks/clipboard-hook.js',
+    'content/hooks/canvas-hook.js',
+    'content/hooks/timer-hook.js',
+    'content/hooks/cookie-hook.js',
+    'content/hooks/storage-hook.js',
+    'content/hooks/permission-hook.js',
+    'content/hooks/css-clickjack-hook.js',
+    'content/hooks/serviceworker-hook.js',
+    'content/hooks/credentials-hook.js'
+  ];
   const eventBuffer = [];
   let flushTimer = null;
   const FLUSH_INTERVAL = 300; // 300ms privacy window
+
+  if (shouldInjectIntoPage()) {
+    injectPageHooks();
+  }
+
+  function shouldInjectIntoPage() {
+    const protocol = window.location.protocol || '';
+    return protocol === 'http:' || protocol === 'https:';
+  }
+
+  function injectPageHooks() {
+    const parent = document.documentElement || document.head || document.body;
+    if (!parent) return;
+
+    for (const file of PAGE_HOOK_FILES) {
+      const marker = `data-sentinel-injected-${file.replace(/[^a-z0-9]/gi, '-')}`;
+      if (document.documentElement?.hasAttribute(marker)) continue;
+
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL(file);
+      script.async = false;
+      script.dataset.sentinelInjected = file;
+      script.onload = () => script.remove();
+      script.onerror = () => {
+        console.warn(`[SentinelAI] Failed to inject ${file}`);
+        script.remove();
+      };
+      parent.prepend(script);
+
+      document.documentElement?.setAttribute(marker, '1');
+    }
+  }
 
   // ── Listen for hook events ──
   window.addEventListener('__sentinel_hook', function(e) {
@@ -73,8 +125,15 @@
     document.querySelectorAll('form').forEach(form => {
       const inputs = form.querySelectorAll('input');
       const types = Array.from(inputs).map(i => i.type || 'text');
+      let actionOrigin = '';
+      try {
+        actionOrigin = form.action ? new URL(form.action, window.location.href).origin : window.location.origin;
+      } catch {
+        actionOrigin = '';
+      }
       signals.forms.push({
         action: form.action,
+        actionOrigin,
         method: form.method,
         hasPassword: types.includes('password'),
         hasEmail: types.includes('email'),
@@ -82,17 +141,47 @@
       });
     });
 
-    // Count external links
+    // External links + link destinations
     const extLinks = Array.from(document.querySelectorAll('a[href]'))
       .filter(a => {
         try { return new URL(a.href).origin !== window.location.origin; }
         catch { return false; }
       });
+    signals.links = extLinks.slice(0, 50).map((a) => {
+      try {
+        const url = new URL(a.href);
+        return { href: url.href, origin: url.origin, hostname: url.hostname };
+      } catch {
+        return null;
+      }
+    }).filter(Boolean);
     signals.externalLinkCount = extLinks.length;
 
-    // Count scripts
-    signals.scriptCount = document.querySelectorAll('script').length;
+    // Scripts
+    const scriptEls = Array.from(document.querySelectorAll('script'));
+    signals.scriptCount = scriptEls.length;
     signals.inlineScriptCount = document.querySelectorAll('script:not([src])').length;
+    signals.scripts = scriptEls.slice(0, 50).map((script) => {
+      if (!script.src) {
+        return { inline: true };
+      }
+      try {
+        const url = new URL(script.src, window.location.href);
+        return { src: url.href, origin: url.origin, hostname: url.hostname, inline: false };
+      } catch {
+        return { src: script.src, inline: false };
+      }
+    });
+
+    // Iframes
+    signals.iframes = Array.from(document.querySelectorAll('iframe[src]')).slice(0, 20).map((frame) => {
+      try {
+        const url = new URL(frame.src, window.location.href);
+        return { src: url.href, origin: url.origin, hostname: url.hostname };
+      } catch {
+        return { src: frame.src };
+      }
+    });
 
     // Extract meta tags
     document.querySelectorAll('meta').forEach(meta => {
@@ -103,6 +192,26 @@
     // Check for suspicious text patterns
     const bodyText = (document.body?.innerText || '').substring(0, 5000);
     signals.bodyTextPreview = bodyText.substring(0, 1000);
+
+    // Aggregate outbound domains for monitor/campaign analysis
+    const outboundDomains = new Set();
+    for (const item of signals.links) {
+      if (item.origin && item.origin !== window.location.origin) outboundDomains.add(item.hostname);
+    }
+    for (const item of signals.scripts) {
+      if (item.origin && item.origin !== window.location.origin) outboundDomains.add(item.hostname);
+    }
+    for (const item of signals.iframes) {
+      if (item.origin && item.origin !== window.location.origin) outboundDomains.add(item.hostname);
+    }
+    for (const form of signals.forms) {
+      if (form.actionOrigin && form.actionOrigin !== window.location.origin) {
+        try {
+          outboundDomains.add(new URL(form.action, window.location.href).hostname);
+        } catch {}
+      }
+    }
+    signals.outboundDomains = Array.from(outboundDomains).slice(0, 50);
 
     return signals;
   }
@@ -142,54 +251,110 @@
     
     const shadow = container.attachShadow({ mode: 'closed' });
     
-    const isBlock = verdict.level === 'critical' || verdict.level === 'high';
-    const bgColor = isBlock ? 'rgba(20, 0, 0, 0.95)' : 'rgba(255, 170, 0, 0.9)';
-    const textColor = isBlock ? '#ff5252' : '#ffffff';
-    const dataSharing = verdict.dataSharing || verdict.data_sharing || [];
-    const destinations = dataSharing
+    const isBlock = verdict.action === 'block' || verdict.level === 'critical' || verdict.level === 'high';
+    const textColor = isBlock ? '#ff3333' : '#ffb74d';
+    const dataSharing = verdict.data_sharing || verdict.dataSharing || [];
+    const destinations = [...new Set(dataSharing
       .filter(entry => entry.destination)
-      .map(entry => entry.destination)
+      .map(entry => entry.destination))]
       .slice(0, 3)
       .join(', ');
     
+    // Format top threats
+    const threatsList = verdict.all_threats || verdict.allThreats || [];
+    const topThreat = threatsList[0]?.detail || threatsList[0]?.type || 'Heuristic Anomaly';
+    
     shadow.innerHTML = `
       <style>
+        :host {
+          all: initial;
+        }
         .sentinel-overlay {
           position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-          background: ${bgColor}; color: #fff; font-family: system-ui, -apple-system, sans-serif;
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          z-index: 2147483647; pointer-events: auto; backdrop-filter: blur(8px);
+          background: rgba(8, 8, 12, 0.4); 
+          display: flex; align-items: center; justify-content: center;
+          z-index: 2147483647; pointer-events: auto; 
+          backdrop-filter: blur(12px) saturate(180%);
+          -webkit-backdrop-filter: blur(12px) saturate(180%);
+          font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+          animation: fadeIn 0.4s ease-out;
         }
         .sentinel-card {
-          background: #1e1e1e; padding: 40px; border-radius: 12px;
-          border: 2px solid ${textColor}; max-width: 500px; text-align: center;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+          background: rgba(30, 30, 35, 0.7);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          padding: 45px; border-radius: 24px;
+          border: 1px solid rgba(255, 255, 255, 0.1); 
+          max-width: 520px; width: 90%; text-align: center;
+          box-shadow: 0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+          position: relative;
         }
-        h1 { margin: 0 0 16px 0; font-size: 28px; color: ${textColor}; }
-        p { margin: 0 0 24px 0; line-height: 1.5; color: #ccc; font-size: 16px; }
-        .details { background: #000; padding: 16px; border-radius: 6px; text-align: left; font-size: 14px; margin-bottom: 24px; color: #aaa; border-left: 4px solid ${textColor}; }
+        .sentinel-card::before {
+          content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px;
+          background: ${textColor}; border-radius: 24px 24px 0 0;
+        }
+        h1 { margin: 0 0 12px 0; font-size: 32px; color: ${textColor}; font-weight: 700; letter-spacing: -0.5px; }
+        p { margin: 0 0 28px 0; line-height: 1.6; color: #ccd0d5; font-size: 17px; font-weight: 300; }
+        .details-grid {
+          background: rgba(0, 0, 0, 0.3);
+          padding: 20px; border-radius: 16px;
+          text-align: left; font-size: 14px; margin-bottom: 32px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          display: flex; flex-direction: column; gap: 12px;
+        }
+        .detail-row { display: flex; justify-content: space-between; align-items: baseline; }
+        .detail-label { color: #8a8d91; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        .detail-value { color: #fff; font-weight: 500; text-align: right; word-break: break-all; max-width: 60%; }
+        
+        .actions { display: flex; gap: 12px; justify-content: center; }
         button {
-          background: ${textColor}; color: #000; border: none; padding: 12px 24px;
-          border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px;
+          padding: 14px 28px; border-radius: 12px; font-weight: 600;
+          cursor: pointer; font-size: 16px; transition: all 0.2s; border: none;
         }
-        button.secondary { background: transparent; color: #aaa; border: 1px solid #555; margin-left: 12px; }
+        #btn-goback {
+          background: #fff; color: #000;
+        }
+        #btn-goback:hover { transform: translateY(-2px); background: #eee; }
+        #btn-proceed {
+          background: transparent; color: #aaa; border: 1px solid rgba(255,255,255,0.1);
+        }
+        #btn-proceed:hover { color: #fff; border-color: #fff; background: rgba(255,255,255,0.05); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       </style>
       <div class="sentinel-overlay">
         <div class="sentinel-card">
           <h1>🛡️ ${isBlock ? 'Access Blocked' : 'Security Warning'}</h1>
           <p>${verdict.recommendation || 'SentinelAI has detected significant risk factors on this page.'}</p>
-          <div class="details">
-            <strong>Risk Score:</strong> ${verdict.compositeScore || verdict.composite_score}${verdict.confidenceInterval ? ` &plusmn; ${verdict.confidenceInterval}` : ''}/100<br>
-            <strong>Top Threat:</strong> ${verdict.allThreats?.[0]?.detail || verdict.all_threats?.[0]?.detail || 'Unknown'}<br>
-            <strong>Data Sharing:</strong> ${destinations || 'No outbound destination captured'}
+          <div class="details-grid">
+            <div class="detail-row">
+              <span class="detail-label">Risk Score</span>
+              <span class="detail-value" style="color: ${textColor}; font-weight: 700;">${verdict.compositeScore || verdict.composite_score}${verdict.confidenceInterval ? ` &plusmn; ${verdict.confidenceInterval}` : ''}/100</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Top Threat</span>
+              <span class="detail-value">${topThreat}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Data Traffic</span>
+              <span class="detail-value">${destinations || 'No unauthorized exfiltration detected'}</span>
+            </div>
           </div>
-          <button id="btn-goback">Go Back to Safety</button>
-          ${isBlock ? '' : '<button id="btn-proceed" class="secondary">Proceed Anyway</button>'}
+          <div class="actions">
+            <button id="btn-goback">Return to Safety</button>
+            ${isBlock ? '' : '<button id="btn-proceed">Dismiss Warning</button>'}
+          </div>
         </div>
       </div>
     `;
     
-    shadow.getElementById('btn-goback').addEventListener('click', () => history.back() || window.close());
+    shadow.getElementById('btn-goback').addEventListener('click', () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.replace('about:blank');
+      }
+    });
     const proceedBtn = shadow.getElementById('btn-proceed');
     if (proceedBtn) {
       proceedBtn.addEventListener('click', () => container.remove());
@@ -260,6 +425,10 @@
 
   // ── Initial page scan ──
   function onPageReady() {
+    if (!shouldInjectIntoPage()) {
+      return;
+    }
+
     // Flush any pending hook events
     flushEvents();
 
@@ -281,7 +450,7 @@
 
   // Console announcement
   console.info(
-    '%c🛡️ SentinelAI v2.0 Active Runtime Intelligence — 12 hooks loaded',
+    '%c🛡️ SentinelAI v3.0 Active Runtime Intelligence — 18 hooks loaded',
     'color:#00e5ff;font-weight:bold;font-size:13px'
   );
 })();

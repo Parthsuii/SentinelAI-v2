@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "SentinelAI v2.0",
-  "version": "2.0.0",
+  "name": "SentinelAI v3.0",
+  "version": "3.0.0",
   "description": "Active Runtime Intelligence — monitors what websites actually DO inside your browser in real time.",
   "permissions": [
     "activeTab",
@@ -24,24 +24,6 @@
         "<all_urls>"
       ],
       "js": [
-        "content/hooks/fetch-hook.js",
-        "content/hooks/xhr-hook.js",
-        "content/hooks/eval-hook.js",
-        "content/hooks/dom-write-hook.js",
-        "content/hooks/mutation-hook.js",
-        "content/hooks/beacon-hook.js",
-        "content/hooks/websocket-hook.js",
-        "content/hooks/postmessage-hook.js",
-        "content/hooks/form-hook.js",
-        "content/hooks/clipboard-hook.js",
-        "content/hooks/canvas-hook.js",
-        "content/hooks/timer-hook.js",
-        "content/hooks/cookie-hook.js",
-        "content/hooks/storage-hook.js",
-        "content/hooks/permission-hook.js",
-        "content/hooks/css-clickjack-hook.js",
-        "content/hooks/serviceworker-hook.js",
-        "content/hooks/credentials-hook.js",
         "content/sandbox.js",
         "content/content.js"
       ],
@@ -56,7 +38,7 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     },
-    "default_title": "SentinelAI v2.0"
+    "default_title": "SentinelAI v3.0"
   },
   "icons": {
     "16": "icons/icon-16.png",
@@ -76,6 +58,24 @@
   "web_accessible_resources": [
     {
       "resources": [
+        "content/hooks/fetch-hook.js",
+        "content/hooks/xhr-hook.js",
+        "content/hooks/eval-hook.js",
+        "content/hooks/dom-write-hook.js",
+        "content/hooks/mutation-hook.js",
+        "content/hooks/beacon-hook.js",
+        "content/hooks/websocket-hook.js",
+        "content/hooks/postmessage-hook.js",
+        "content/hooks/form-hook.js",
+        "content/hooks/clipboard-hook.js",
+        "content/hooks/canvas-hook.js",
+        "content/hooks/timer-hook.js",
+        "content/hooks/cookie-hook.js",
+        "content/hooks/storage-hook.js",
+        "content/hooks/permission-hook.js",
+        "content/hooks/css-clickjack-hook.js",
+        "content/hooks/serviceworker-hook.js",
+        "content/hooks/credentials-hook.js",
         "content/sandbox-frame.html",
         "dashboard/blocked.html",
         "icons/icon-128.png"

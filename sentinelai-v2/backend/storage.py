@@ -81,7 +81,11 @@ class VerdictEmbeddingStore:
         self._collection = None
         try:
             import chromadb
-            self._client = chromadb.PersistentClient(path=persist_dir)
+            from chromadb.config import Settings
+            self._client = chromadb.PersistentClient(
+                path=persist_dir,
+                settings=Settings(anonymized_telemetry=False)
+            )
             self._collection = self._client.get_or_create_collection(
                 name="sentinel_verdicts",
                 metadata={"hnsw:space": "cosine"}
@@ -129,6 +133,7 @@ class PersistentStore:
                     threat_count INTEGER,
                     threats_json TEXT,
                     agent_breakdown_json TEXT,
+                    location_info_json TEXT,
                     timestamp REAL
                 )
             """)
@@ -148,15 +153,36 @@ class PersistentStore:
                     timestamp REAL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS baselines (
+                    hostname TEXT PRIMARY KEY,
+                    hooks_json TEXT,
+                    visit_count INTEGER DEFAULT 1,
+                    last_seen REAL
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS reputation (
+                    ip TEXT PRIMARY KEY,
+                    risk_score REAL DEFAULT 0,
+                    malicious_siblings TEXT,
+                    last_updated REAL
+                )
+            """)
+            existing_scan_history_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(scan_history)").fetchall()
+            }
+            if "location_info_json" not in existing_scan_history_columns:
+                conn.execute("ALTER TABLE scan_history ADD COLUMN location_info_json TEXT")
             conn.commit()
         print(f"[Storage] SQLite initialized at {self.db_path}")
 
     def save_scan(self, url: str, hostname: str, score: float, level: str,
-                  threat_count: int, threats: list, agent_breakdown: dict):
+                  threat_count: int, threats: list, agent_breakdown: dict, location_info: dict = None):
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
-                "INSERT INTO scan_history (url, hostname, score, level, threat_count, threats_json, agent_breakdown_json, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (url, hostname, score, level, threat_count, json.dumps(threats[:10]), json.dumps(agent_breakdown), time.time())
+                "INSERT INTO scan_history (url, hostname, score, level, threat_count, threats_json, agent_breakdown_json, location_info_json, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (url, hostname, score, level, threat_count, json.dumps(threats[:10]), json.dumps(agent_breakdown), json.dumps(location_info), time.time())
             )
 
     def get_history(self, limit: int = 100):
@@ -165,7 +191,13 @@ class PersistentStore:
             rows = conn.execute(
                 "SELECT * FROM scan_history ORDER BY timestamp DESC LIMIT ?", (limit,)
             ).fetchall()
-            return [dict(r) for r in rows]
+            results = []
+            for r in rows:
+                d = dict(r)
+                if d.get("location_info_json"):
+                    d["location_info"] = json.loads(d["location_info_json"])
+                results.append(d)
+            return results
 
     def clear_history(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -201,6 +233,52 @@ class PersistentStore:
                 "SELECT * FROM user_feedback ORDER BY timestamp DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # v3 Baseline Methods
+    def get_baseline(self, hostname: str) -> Optional[dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM baselines WHERE hostname = ?", (hostname,)).fetchone()
+            if row:
+                res = dict(row)
+                res["hooks_fired"] = json.loads(res["hooks_json"])
+                return res
+            return None
+
+    def update_baseline(self, hostname: str, hook: str):
+        existing = self.get_baseline(hostname)
+        if not existing:
+            hooks = [hook]
+            count = 1
+        else:
+            hooks = existing["hooks_fired"]
+            if hook not in hooks:
+                hooks.append(hook)
+            count = existing["visit_count"] + 1
+        
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO baselines (hostname, hooks_json, visit_count, last_seen) VALUES (?, ?, ?, ?)",
+                (hostname, json.dumps(hooks), count, time.time())
+            )
+
+    # v3 Reputation Methods
+    def get_reputation(self, ip: str) -> Optional[dict]:
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM reputation WHERE ip = ?", (ip,)).fetchone()
+            if row:
+                res = dict(row)
+                res["malicious_siblings"] = json.loads(res["malicious_siblings"] or "[]")
+                return res
+            return None
+
+    def update_reputation(self, ip: str, risk_score: float, malicious_siblings: list):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO reputation (ip, risk_score, malicious_siblings, last_updated) VALUES (?, ?, ?, ?)",
+                (ip, risk_score, json.dumps(malicious_siblings), time.time())
+            )
 
 # ── Neo4j Wrapper (Threat campaign graph - Tier 3) ──
 class GraphStore:
@@ -246,4 +324,3 @@ class GraphStore:
                 return [{"domain": record["domain"], "score": record["score"]} for record in result]
             except Exception:
                 return []
-

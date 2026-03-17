@@ -22,7 +22,7 @@ MODEL_REGISTRY = {
     "content-agent": "phi4-mini",
     "runtime-agent": "phi4-mini",           # Shared with content-agent
     "exfil-agent": "qwen2.5:1.5b",
-    "visual-agent": "gemma3:2b",
+    "visual-agent": "gemma:2b",             # Fixed tag: gemma:2b instead of gemma3:2b
     "verdict-agent": "qwen2.5:1.5b",
     "context-engine": "phi3.5",
     "orchestrator": "qwen2.5:3b",

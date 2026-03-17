@@ -247,6 +247,33 @@ body {
   border-radius: var(--radius);
   padding: 20px;
 }
+/* ── Location Context ── */
+.location-context {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+.badge-loc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  animation: slideIn 0.3s ease-out;
+}
+.badge-loc.critical { border-color: var(--critical); color: var(--critical); }
+.badge-loc.high { border-color: var(--high); color: var(--high); }
+.badge-loc.safe { border-color: var(--safe); color: var(--safe); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
 
 .section-header {
   display: flex;

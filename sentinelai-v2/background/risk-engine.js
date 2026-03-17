@@ -1,7 +1,7 @@
 /**
- * SentinelAI v2.0 — Risk Engine
+ * SentinelAI v3.0 — Risk Engine
  * Weighted risk score calculator.
- * Aggregates scores from all 6 agents using the architecture's weight matrix.
+ * Aggregates scores from all 8 agents using the v3 architecture's weight matrix.
  */
 
 importScripts('../agents/url-agent.js');
@@ -74,7 +74,7 @@ class RiskEngine {
     const urlResult = this.urlAgent.analyze(url);
     return {
       compositeScore: urlResult.score,
-      level: urlResult.score < 15 ? 'safe' : urlResult.score < 30 ? 'low' : urlResult.score < 55 ? 'medium' : urlResult.score < 80 ? 'high' : 'critical',
+      level: urlResult.score < 30 ? 'safe' : urlResult.score < 40 ? 'low' : urlResult.score < 75 ? 'medium' : urlResult.score < 80 ? 'high' : 'critical',
       urlResult,
       timestamp: Date.now()
     };

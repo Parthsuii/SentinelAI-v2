@@ -5,7 +5,15 @@ const threat = params.get('threat') || 'Heuristic Match or Threat Intel Hit';
 
 document.getElementById('target-url').textContent = blockedUrl;
 document.getElementById('risk-score').textContent = score;
-document.getElementById('primary-threat').textContent = decodeURIComponent(threat);
+
+let decodedThreat = decodeURIComponent(threat);
+if (decodedThreat.includes('{')) {
+  try {
+    const threatObj = JSON.parse(decodedThreat);
+    decodedThreat = threatObj.detail || threatObj.type || decodedThreat;
+  } catch(e) {}
+}
+document.getElementById('primary-threat').textContent = decodedThreat;
 
 document.getElementById('btn-back').addEventListener('click', () => {
   if (window.history.length > 2) {

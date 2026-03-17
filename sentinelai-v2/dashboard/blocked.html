@@ -3,149 +3,260 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Access Blocked - SentinelAI v2.0</title>
+    <title>Security Alert | SentinelAI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-danger: #110000;
-            --card-bg: #1e1e1e;
-            --text-primary: #ffffff;
-            --text-secondary: #aaaaaa;
-            --accent-danger: #ff5252;
-            --accent-warning: #ffb74d;
+            --bg-dark: #08080c;
+            --accent-danger: #ff3333;
+            --danger-glow: rgba(255, 51, 51, 0.4);
+            --card-glass: rgba(255, 255, 255, 0.03);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --text-heading: #ffffff;
+            --text-body: #ccd0d5;
+            --text-muted: #8a8d91;
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            background-color: var(--bg-danger);
-            color: var(--text-primary);
-            font-family: system-ui, -apple-system, sans-serif;
+            background: radial-gradient(circle at 50% 50%, #1a0505 0%, var(--bg-dark) 70%);
+            color: var(--text-body);
+            font-family: 'Outfit', system-ui, sans-serif;
             margin: 0;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            text-align: center;
+            overflow: hidden;
         }
 
-        .container {
-            background: var(--card-bg);
-            padding: 3rem;
-            border-radius: 16px;
-            border: 2px solid var(--accent-danger);
-            max-width: 600px;
+        .alert-wrapper {
+            position: relative;
+            max-width: 650px;
             width: 90%;
-            box-shadow: 0 20px 50px rgba(255, 0, 0, 0.2);
+            z-index: 10;
+            animation: slideUp 0.8s ease-out;
+        }
+
+        .glass-card {
+            background: var(--card-glass);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            padding: 3.5rem;
+            text-align: center;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, 0.6);
             position: relative;
             overflow: hidden;
         }
 
-        .container::before {
+        .glass-card::before {
             content: '';
             position: absolute;
-            top: 0; left: 0; right: 0; height: 6px;
-            background: var(--accent-danger);
+            top: 0; left: 0; right: 0; height: 100%;
+            background: linear-gradient(180deg, rgba(255, 51, 51, 0.05) 0%, transparent 100%);
+            pointer-events: none;
         }
 
-        .icon {
-            font-size: 64px;
-            margin-bottom: 1rem;
+        .shield-icon {
+            font-size: 80px;
+            margin-bottom: 1.5rem;
             display: inline-block;
-            animation: pulse 2s infinite ease-in-out;
+            filter: drop-shadow(0 0 20px var(--danger-glow));
+            animation: shieldPulse 3s infinite ease-in-out;
+            user-select: none;
         }
 
         h1 {
-            color: var(--accent-danger);
+            color: var(--text-heading);
+            font-size: 2.8rem;
+            font-weight: 700;
             margin: 0 0 1rem 0;
-            font-size: 2.5rem;
+            letter-spacing: -1px;
         }
 
-        p {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
+        .status-badge {
+            display: inline-block;
+            background: rgba(255, 51, 51, 0.15);
+            color: var(--accent-danger);
+            padding: 6px 16px;
+            border-radius: 100px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255, 51, 51, 0.3);
+        }
+
+        p.description {
+            color: var(--text-body);
+            font-size: 1.15rem;
             line-height: 1.6;
-            margin-bottom: 2rem;
+            margin-bottom: 2.5rem;
+            font-weight: 300;
         }
 
-        .details-box {
-            background: #000000;
-            border-left: 4px solid var(--accent-danger);
-            padding: 1.5rem;
-            border-radius: 8px;
+        .intelligence-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
             text-align: left;
-            margin-bottom: 2rem;
-            font-family: ui-monospace, 'Cascadia Code', monospace;
+            margin-bottom: 3rem;
+        }
+
+        .intel-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-glass);
+            padding: 1.25rem;
+            border-radius: 16px;
+        }
+
+        .intel-label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .intel-value {
+            color: var(--text-heading);
+            font-weight: 600;
+            word-break: break-all;
             font-size: 0.95rem;
         }
 
-        .details-box span {
-            color: var(--text-secondary);
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-
-        .details-box .highlight {
-            color: var(--text-primary);
-            font-weight: bold;
-        }
-
-        .btn-container {
+        .score-box {
+            grid-column: span 2;
             display: flex;
-            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(90deg, rgba(255, 51, 51, 0.1) 0%, rgba(255, 51, 51, 0.02) 100%);
+        }
+
+        .score-gauge {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-danger);
+        }
+
+        .actions {
+            display: flex;
+            gap: 1.25rem;
             justify-content: center;
         }
 
         button {
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            font-weight: bold;
+            padding: 16px 32px;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
             border: none;
-            transition: transform 0.2s, background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .btn-primary {
-            background: var(--accent-danger);
+        .btn-safety {
+            background: #ffffff;
             color: #000;
+            box-shadow: 0 10px 20px rgba(255, 255, 255, 0.1);
         }
 
-        .btn-primary:hover {
-            background: #ff3333;
-            transform: translateY(-2px);
+        .btn-safety:hover {
+            background: #e0e0e0;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(255, 255, 255, 0.2);
         }
 
-        .btn-secondary {
+        .btn-unsafe {
             background: transparent;
-            color: var(--text-secondary);
-            border: 1px solid #444;
+            color: var(--text-muted);
+            border: 1px solid var(--border-glass);
         }
 
-        .btn-secondary:hover {
-            color: var(--text-primary);
-            border-color: var(--text-primary);
+        .btn-unsafe:hover {
+            color: var(--text-heading);
+            border-color: var(--text-heading);
+            background: rgba(255, 255, 255, 0.05);
         }
 
-        @keyframes pulse {
-            0% { transform: scale(1); filter: brightness(1); }
-            50% { transform: scale(1.1); filter: brightness(1.2); }
-            100% { transform: scale(1); filter: brightness(1); }
+        @keyframes shieldPulse {
+            0% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 20px var(--danger-glow)); }
+            50% { transform: scale(1.05); filter: brightness(1.2) drop-shadow(0 0 40px var(--danger-glow)); }
+            100% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 20px var(--danger-glow)); }
         }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Decorative Background Elements */
+        .glow-orb {
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            background: var(--accent-danger);
+            filter: blur(150px);
+            opacity: 0.1;
+            border-radius: 50%;
+            z-index: 1;
+        }
+
+        .orb-1 { top: -100px; right: -100px; }
+        .orb-2 { bottom: -100px; left: -100px; opacity: 0.05; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="icon">🛑</div>
-        <h1>Access Blocked</h1>
-        <p>SentinelAI intercepted this connection before the page could load. We identified critical threats indicating this site is unsafe.</p>
-        
-        <div class="details-box">
-            <span><strong class="highlight">Blocked URL:</strong> <span id="target-url">Loading...</span></span>
-            <span><strong class="highlight">Risk Score:</strong> <span id="risk-score" style="color: var(--accent-danger);">Loading...</span>/100</span>
-            <span><strong class="highlight">Primary Threat:</strong> <span id="primary-threat">Loading...</span></span>
-        </div>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
 
-        <div class="btn-container">
-            <button class="btn-primary" id="btn-back">Return to Safety</button>
-            <button class="btn-secondary" id="btn-proceed">Proceed Anyway (Unsafe)</button>
+    <div class="alert-wrapper">
+        <div class="glass-card">
+            <div class="shield-icon">🛡️</div>
+            <div class="status-badge">SentinelAI Intelligence</div>
+            <h1>Connection Prevented</h1>
+            <p class="description">Our Active Runtime Intelligence identifies this destination as high-risk. Malicious patterns were detected before the connection was established.</p>
+            
+            <div class="intelligence-grid">
+                <div class="intel-item score-box">
+                    <div>
+                        <span class="intel-label">Calculated Risk Level</span>
+                        <div class="intel-value" style="color: var(--accent-danger); font-size: 1.1rem;">Critical Threat Detected</div>
+                    </div>
+                    <div class="score-gauge"><span id="risk-score">90</span>/100</div>
+                </div>
+                <div class="intel-item">
+                    <span class="intel-label">Primary Verdict</span>
+                    <div class="intel-value" id="primary-threat">Heuristic Match</div>
+                </div>
+                <div class="intel-item">
+                    <span class="intel-label">Target Destination</span>
+                    <div class="intel-value" id="target-url">Loading...</div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn-safety" id="btn-back">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                    Return to Safety
+                </button>
+                <button class="btn-unsafe" id="btn-proceed">
+                    Proceed Anyway
+                </button>
+            </div>
         </div>
     </div>
 

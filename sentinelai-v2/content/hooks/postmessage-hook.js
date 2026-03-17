@@ -56,7 +56,8 @@
         action: 'receive',
         messagePreview: msgPreview,
         origin: e.origin,
-        sourceIsNull: e.source === null
+        sourceIsNull: e.source === null,
+        isTrusted: e.isTrusted
       }
     };
 

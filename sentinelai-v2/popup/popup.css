@@ -24,8 +24,8 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 20px rgba(0, 229, 255, 0.15);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -47,9 +47,18 @@ body {
 }
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
 
 /* ══ HEADER ══ */
 .header {
@@ -97,7 +106,7 @@ body {
 }
 
 .btn-icon {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-glass);
   color: var(--text-secondary);
   padding: 8px;
@@ -157,7 +166,10 @@ body {
   border-radius: var(--radius-sm);
 }
 
-.url-icon { font-size: 12px; }
+.url-icon {
+  font-size: 12px;
+}
+
 .url-text {
   font-size: 11px;
   color: var(--text-secondary);
@@ -226,8 +238,15 @@ body {
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .threat-card:hover {
@@ -243,14 +262,36 @@ body {
   flex-shrink: 0;
 }
 
-.threat-dot.high { background: var(--color-high); box-shadow: 0 0 6px var(--color-high); }
-.threat-dot.medium { background: var(--color-medium); box-shadow: 0 0 6px var(--color-medium); }
-.threat-dot.low { background: var(--color-low); }
-.threat-dot.critical { background: var(--color-critical); box-shadow: 0 0 8px var(--color-critical); animation: pulse 1.5s infinite; }
+.threat-dot.high {
+  background: var(--color-high);
+  box-shadow: 0 0 6px var(--color-high);
+}
+
+.threat-dot.medium {
+  background: var(--color-medium);
+  box-shadow: 0 0 6px var(--color-medium);
+}
+
+.threat-dot.low {
+  background: var(--color-low);
+}
+
+.threat-dot.critical {
+  background: var(--color-critical);
+  box-shadow: 0 0 8px var(--color-critical);
+  animation: pulse 1.5s infinite;
+}
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .threat-info {
@@ -314,7 +355,7 @@ body {
 .agent-progress {
   flex: 1;
   height: 4px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.06);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -326,8 +367,13 @@ body {
   transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.agent-fill.high { background: linear-gradient(90deg, var(--color-high), var(--color-critical)); }
-.agent-fill.medium { background: linear-gradient(90deg, var(--color-medium), var(--color-high)); }
+.agent-fill.high {
+  background: linear-gradient(90deg, var(--color-high), var(--color-critical));
+}
+
+.agent-fill.medium {
+  background: linear-gradient(90deg, var(--color-medium), var(--color-high));
+}
 
 .agent-score {
   font-size: 10px;
@@ -372,13 +418,13 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-glass);
   color: var(--text-secondary);
 }
 
 .btn-secondary:hover {
-  background: rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
 }
 
@@ -404,9 +450,17 @@ body {
 }
 
 /* ══ THREAT LEVEL THEMES ══ */
-body.level-safe .risk-gauge-container { filter: hue-rotate(0deg); }
-body.level-critical { border: 2px solid rgba(255, 23, 68, 0.3); }
-body.level-critical .header { background: linear-gradient(180deg, rgba(255, 23, 68, 0.08) 0%, transparent 100%); }
+body.level-safe .risk-gauge-container {
+  filter: hue-rotate(0deg);
+}
+
+body.level-critical {
+  border: 2px solid rgba(255, 23, 68, 0.3);
+}
+
+body.level-critical .header {
+  background: linear-gradient(180deg, rgba(255, 23, 68, 0.08) 0%, transparent 100%);
+}
 
 /* ══ LOADING ANIMATION ══ */
 .scanning-anim {
@@ -414,6 +468,13 @@ body.level-critical .header { background: linear-gradient(180deg, rgba(255, 23, 
 }
 
 @keyframes scanning {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }

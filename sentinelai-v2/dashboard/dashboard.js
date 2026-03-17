@@ -39,11 +39,32 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('stat-scans').textContent = history.length;
       document.getElementById('stat-blocked').textContent = blocked;
 
-      // Recent scans
+      // ── Recent scans ──
       const recentList = document.getElementById('recent-scans');
       if (history.length === 0) {
         recentList.innerHTML = '<div class="empty-state-lg">No scans recorded yet. Browse websites with SentinelAI active.</div>';
         return;
+      }
+
+      // ── Location Context Integration ──
+      const latestScan = history[0];
+      const locContainer = document.getElementById('current-location-context');
+      if (latestScan && latestScan.location_info && locContainer) {
+        const loc = latestScan.location_info;
+        const ratingClass = (loc.law_rating || 'unknown').toLowerCase();
+        locContainer.innerHTML = `
+          <div class="badge-loc">
+            <span>📍 Server: ${loc.city || 'Unknown'}, ${loc.country || 'Unknown'} ${loc.flag || '🌐'}</span>
+          </div>
+          <div class="badge-loc ${ratingClass}">
+            <span>⚖️ Jurisdiction: ${loc.law || 'Unknown Privacy Law'} (${loc.law_rating || 'Unknown'})</span>
+          </div>
+          <div class="badge-loc info">
+            <span>🏢 Org: ${loc.org || 'Unknown Provider'}</span>
+          </div>
+        `;
+      } else if (locContainer) {
+        locContainer.innerHTML = '';
       }
 
       recentList.innerHTML = history.slice(0, 20).map(scan => `

@@ -16,13 +16,20 @@
         const val = cookieDesc.get.call(this);
         // Only log reads that return non-empty values (avoid noise)
         if (val && val.length > 0) {
+          const cookiePairs = val.split(';').map(part => part.trim()).filter(Boolean);
+          const cookieNames = cookiePairs
+            .map(part => part.split('=')[0]?.trim().toLowerCase())
+            .filter(Boolean);
+          const sensitiveCookieReads = cookieNames.filter(name => /^(?:__secure-|__host-)?(?:session|sess|sid|auth|token|jwt|csrf)/i.test(name));
           const event = {
             hook: 'cookie',
             timestamp: Date.now(),
             data: {
               action: 'read',
-              cookieCount: val.split(';').length,
-              hasSessionId: /sess|sid|token|auth|jwt/i.test(val),
+              cookieCount: cookiePairs.length,
+              hasSessionId: sensitiveCookieReads.length > 0,
+              sensitiveCookieCount: sensitiveCookieReads.length,
+              sampleCookieNames: cookieNames.slice(0, 5),
               totalLength: val.length
             }
           };

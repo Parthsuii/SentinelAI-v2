@@ -36,15 +36,29 @@ BRAND_VISION_DB = {
     "microsoft": "a photo of a Microsoft login page"
 }
 
+SAFE_VISUAL_HOSTS = {
+    "microsoftonline.com",
+    "googleusercontent.com",
+    "accounts.google.com",
+    "icloud.com",
+    "live.com",
+    "office.com",
+}
+
 
 def analyze_heuristic(signals: dict) -> dict:
     """Heuristic visual analysis based on page signals."""
     threats = []
     score = 0
     hostname = signals.get('hostname', '')
+    title = (signals.get('title') or '').lower()
+    body_preview = (signals.get('bodyTextPreview') or '').lower()
 
+    lowered_host = hostname.lower()
     for brand in BRAND_VISION_DB.keys():
-        if brand in hostname.lower() and not hostname.lower().endswith(brand + ".com"):
+        if lowered_host in SAFE_VISUAL_HOSTS:
+            continue
+        if brand in lowered_host and not lowered_host.endswith(brand + ".com"):
             score += 20
             threats.append({
                 "type": "domain-brand-mismatch", 
@@ -54,11 +68,29 @@ def analyze_heuristic(signals: dict) -> dict:
     # Check for login form heuristics
     forms = signals.get('forms', [])
     password_forms = [f for f in forms if f.get('hasPassword')]
-    if password_forms and "login" in hostname:
-        score += 15
+    if password_forms and "login" in hostname and any(brand in title for brand in BRAND_VISION_DB.keys()) and lowered_host not in SAFE_VISUAL_HOSTS:
+        score += 8
         threats.append({
             "type": "login-form-detected",
-            "detail": f"Page contains password form on {hostname}"
+            "detail": f"Brand-themed login page detected on {hostname}"
+        })
+
+    auth_keywords = ("sign in", "login", "log in", "verify", "account", "password")
+    if password_forms and any(keyword in title or keyword in body_preview for keyword in auth_keywords):
+        score += 15
+        threats.append({
+            "type": "auth-themed-ui",
+            "detail": "Visual login/account theme detected alongside a credential form"
+        })
+
+    if lowered_host in SAFE_VISUAL_HOSTS and score > 0:
+        score *= 0.4
+
+    if len(signals.get('iframes', [])) >= 3:
+        score += 10
+        threats.append({
+            "type": "iframe-heavy-layout",
+            "detail": "Page uses multiple iframe embeds, which can indicate cloaked UI layers"
         })
 
     return {
@@ -70,9 +102,11 @@ def analyze_heuristic(signals: dict) -> dict:
     }
 
 
-async def analyze_screenshot(screenshot_b64: str, url: str) -> dict:
+async def analyze_screenshot(screenshot_b64: str, page_signals=None) -> dict:
     """Analyze a page screenshot for visual impersonation using SigLIP-2 and local LLM."""
-    heuristic = analyze_heuristic({"hostname": url, "forms": [], "title": ""})
+    if page_signals is None:
+        page_signals = {}
+    heuristic = analyze_heuristic(page_signals)
     
     # Step 10 Architecture Implementation: SigLIP-2 Clone Detection
     try:
@@ -110,6 +144,7 @@ async def analyze_screenshot(screenshot_b64: str, url: str) -> dict:
     except Exception as e:
         print(f"[VisualAgent] SigLIP processing error: {e}")
 
+    url = page_signals.get("url", "unknown_url") if isinstance(page_signals, dict) else "unknown_url"
     prompt = f"""You are a visual layout expert. Review these page signals for a site:
 URL: {url}
 Findings: {heuristic['threats']}

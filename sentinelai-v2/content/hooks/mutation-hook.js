@@ -20,8 +20,21 @@
 
           // Detect injected iframes (clickjacking)
           if (tag === 'IFRAME') {
-            suspicious = true;
-            reason = 'iframe-injection';
+            const rect = typeof node.getBoundingClientRect === 'function' ? node.getBoundingClientRect() : null;
+            const style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+            const isHidden = style && (
+              style.display === 'none' ||
+              style.visibility === 'hidden' ||
+              parseFloat(style.opacity || '1') < 0.2
+            );
+            const tinyFrame = rect && rect.width > 0 && rect.height > 0 && (rect.width < 12 || rect.height < 12);
+            const offscreen = rect && (rect.left < -100 || rect.top < -100);
+            const suspiciousSrc = typeof node.src === 'string' && /about:blank|data:|blob:/i.test(node.src);
+            const negativeTabIndex = Number(node.getAttribute?.('tabindex')) < 0;
+            if (isHidden || tinyFrame || offscreen || suspiciousSrc || negativeTabIndex) {
+              suspicious = true;
+              reason = 'iframe-injection';
+            }
           }
           // Detect injected scripts
           else if (tag === 'SCRIPT') {
@@ -38,7 +51,8 @@
             const style = node.style;
             if (style && (
               (style.position === 'fixed' || style.position === 'absolute') &&
-              (parseInt(style.zIndex) > 9000 || style.zIndex === 'auto')
+              parseInt(style.zIndex) > 9000 &&
+              ((parseFloat(style.opacity || '1') > 0.85) || style.pointerEvents === 'auto')
             )) {
               suspicious = true;
               reason = 'overlay-injection';

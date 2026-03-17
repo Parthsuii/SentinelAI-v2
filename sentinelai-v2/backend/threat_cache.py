@@ -36,7 +36,8 @@ class Quad9BloomFilter:
 quad9_bloom = Quad9BloomFilter()
 
 # ── SQLite FTS5 Database ──
-DB_PATH = "./data/threats.db"
+_HERE = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(_HERE, "data", "threats.db")
 
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
@@ -77,27 +78,65 @@ def lookup_threat(url: str):
 
 # ── Background Feed Updater ──
 async def update_feeds():
-    """Background job that runs every 6 hours."""
+    """Background job that runs every 6 hours to fetch real-world threat feeds."""
+    feeds = {
+        "urlhaus": "https://urlhaus.abuse.ch/downloads/csv_recent/",
+        "phishtank": "http://data.phishtank.com/data/online-valid.csv"
+    }
+    
     while True:
         print("[ThreatCache] Starting feed updates (Offline Mode)...")
         try:
-            # In a real scenario, this fetches from URLhaus, OpenPhish, etc.
-            quad9_bloom.add("malicious-test-domain.com")
+            import httpx
+            import csv
+            from io import StringIO
+
+            # Inialize/Clear DB
+            init_db()
             
-            with sqlite3.connect(DB_PATH) as conn:
-                conn.execute("DELETE FROM threats")
-                # Insert some offline mocked examples
-                conn.execute("INSERT INTO threats (url, source, threat_type) VALUES (?, ?, ?)", 
-                             ("http://phish.com/login", "phishtank", "phishing"))
-                conn.execute("INSERT INTO threats (url, source, threat_type) VALUES (?, ?, ?)", 
-                             ("http://evil.com/payload.exe", "urlhaus", "malware"))
-                conn.commit()
-                
-            print("[ThreatCache] Feeds updated successfully.")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                for name, url in feeds.items():
+                    print(f"[ThreatCache] Fetching {name} feed...")
+                    try:
+                        resp = await client.get(url)
+                        if resp.status_code == 200:
+                            content = resp.text
+                            # Simple parsing logic for the two major formats
+                            with sqlite3.connect(DB_PATH) as conn:
+                                if name == "urlhaus":
+                                    # URLhaus CSV usually has some header lines starting with #
+                                    lines = [l for l in content.splitlines() if l and not l.startswith('#')]
+                                    reader = csv.reader(StringIO('\n'.join(lines)))
+                                    for row in reader:
+                                        if len(row) > 2:
+                                            # row layout: id, dateadded, url, url_status, last_online, threat...
+                                            target_url = row[2]
+                                            threat_type = row[5]
+                                            conn.execute("INSERT INTO threats (url, source, threat_type) VALUES (?, ?, ?)", 
+                                                         (target_url, "urlhaus", threat_type))
+                                            # Add to bloom filter for fast checks
+                                            domain = urlparse(target_url).hostname
+                                            if domain: quad9_bloom.add(domain)
+
+                                elif name == "phishtank":
+                                    reader = csv.DictReader(StringIO(content))
+                                    for row in reader:
+                                        target_url = row.get('url')
+                                        if target_url:
+                                            conn.execute("INSERT INTO threats (url, source, threat_type) VALUES (?, ?, ?)", 
+                                                         (target_url, "phishtank", "phishing"))
+                                            domain = urlparse(target_url).hostname
+                                            if domain: quad9_bloom.add(domain)
+                                conn.commit()
+                        print(f"[ThreatCache] OK {name} processed.")
+                    except Exception as fe:
+                        print(f"[ThreatCache] Error processing {name}: {fe}")
+
+            print("[ThreatCache] All feeds updated successfully.")
         except Exception as e:
             print(f"[ThreatCache] Failed to update feeds: {e}")
         
-        # Wait 6 hours (or arbitrary large time for demo)
+        # Wait 6 hours
         await asyncio.sleep(6 * 3600)
 
 def start_background_updater():

@@ -27,6 +27,13 @@ SentinelAI is divided into two main components that communicate with each other 
 - **Monitor Agent:** Precisely calculates risk scores based on real-time findings.
 - **Verdict Agent (Orchestrator):** Gathers all the reports and makes the final decision.
 
+## ✨ Premium UI Overhaul (v3.1)
+SentinelAI now features a high-end, premium user interface across all alert surfaces:
+- **Glassmorphism Design:** Sleek, blurred backgrounds with frosted glass cards for a modern, futuristic feel.
+- **Neural Risk Ring:** A dynamic, glowing circular risk gauge in the extension popup that visualizes page safety in real-time.
+- **Unified Aesthetics:** Consistent "Neural Protection" branding across the block page, in-page overlays, and the extension popup.
+- **Micro-Animations:** Pulsing shield icons and smooth transitions that indicate the active status of our security agents.
+
 ## ⚙️ How It Works
 
 1. **Visit a Webpage:** The Chrome Extension immediately intercepts the website before it fully loads.

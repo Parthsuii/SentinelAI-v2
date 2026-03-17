@@ -1,5 +1,5 @@
 /**
- * SentinelAI v2.0 — Hook 4: document.write() / innerHTML Monitoring
+ * SentinelAI v3.0 — Hook 4: document.write() / innerHTML Monitoring
  * Catches DOM injection attacks via document.write and innerHTML.
  */
 (function() {

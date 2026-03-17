@@ -3,10 +3,23 @@
  * Intercepts malicious service worker registrations.
  */
 (function() {
-  const originalRegister = navigator.serviceWorker ? navigator.serviceWorker.register : null;
+  let serviceWorkerContainer = null;
+
+  try {
+    serviceWorkerContainer = navigator.serviceWorker;
+  } catch (e) {
+    // Sandboxed iframes can throw a SecurityError when this getter is accessed.
+    return;
+  }
+
+  if (!serviceWorkerContainer || typeof serviceWorkerContainer.register !== 'function') {
+    return;
+  }
+
+  const originalRegister = serviceWorkerContainer.register;
 
   if (originalRegister) {
-    navigator.serviceWorker.register = async function(scriptURL, options) {
+    serviceWorkerContainer.register = async function(scriptURL, options) {
       const urlStr = scriptURL.toString();
       
       // Log the registration attempt

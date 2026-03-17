@@ -1753,33 +1753,92 @@ def scan_domains(domains: list[str]) -> dict:
         if not tracker_hits:
             continue
 
+        unique_trackers = {}
         for _, tracker_info in tracker_hits:
+            t_name = tracker_info["name"]
+            if t_name not in unique_trackers or (
+                # Higher risk version of the same tracker takes precedence
+                (tracker_info["risk"] == "CRITICAL") or 
+                (tracker_info["risk"] == "HIGH" and unique_trackers[t_name]["risk"] != "CRITICAL")
+            ):
+                unique_trackers[t_name] = tracker_info
+
+        for t_name, tracker_info in unique_trackers.items():
             base_risk = tracker_info["risk"]
-            # Geolocation + Privacy Law check
             geo_data, effective_risk = print_geo_info(domain, base_risk)
             
-            # Translate risk to numeric score addition
             score_addition = 0
             if effective_risk == "CRITICAL":
-                score_addition = 40
+                score_addition = 35
             elif effective_risk == "HIGH":
-                score_addition = 25
+                score_addition = 20
             elif effective_risk == "MEDIUM":
-                score_addition = 15
+                score_addition = 10
             elif effective_risk == "LOW":
-                score_addition = 5
+                score_addition = 3
                 
             total_score += score_addition
             
+            threat_id = f"network-tracker-{effective_risk.lower()}"
             threats.append({
-                "type": f"network-tracker-{effective_risk.lower()}",
+                "type": threat_id,
                 "detail": f"Tracker '{tracker_info['name']}' ({domain}) detected. Server location: {geo_data.get('country', 'Unknown')}. Privacy Law: {geo_data.get('law', 'Unknown')}.",
             })
             
+    # Build data_sharing and blocking_tips from tracker hits
+    data_sharing = []
+    blocking_tips = []
+    domain_locations = {}
+
+    for raw_domain in domains:
+        if not raw_domain:
+            continue
+        domain = raw_domain.split('//')[-1].split('/')[0].split(':')[0].strip().lower()
+        tracker_hits = match_keys(domain, TRACKERS)
+        if not tracker_hits:
+            continue
+        geo_data = geolocate_domain(domain)
+        domain_locations[domain] = {
+            "country": geo_data.get("country", "Unknown"),
+            "country_code": geo_data.get("country_code", ""),
+            "city": geo_data.get("city", "Unknown"),
+            "org": geo_data.get("org", "Unknown"),
+            "law": geo_data.get("law", "Unknown"),
+            "law_rating": geo_data.get("law_rating", "UNKNOWN"),
+        }
+        for _, tracker_info in tracker_hits:
+            data_sharing.append({
+                "destination": domain,
+                "tracker_name": tracker_info["name"],
+                "data_collected": tracker_info.get("data", "unknown data"),
+                "risk": tracker_info["risk"],
+                "location": geo_data.get("country", "Unknown"),
+                "law": geo_data.get("law", "Unknown"),
+                "law_rating": geo_data.get("law_rating", "UNKNOWN"),
+                "how_to_block": tracker_info.get("block", "Block via browser privacy settings"),
+            })
+            blocking_tips.append({
+                "tracker": tracker_info["name"],
+                "domain": domain,
+                "tip": tracker_info.get("block", "Block via browser privacy settings"),
+                "delete_url": tracker_info.get("delete_url", ""),
+            })
+
+    # Determine primary location
+    primary_location = "Unknown"
+    if domain_locations:
+        countries = [v["country"] for v in domain_locations.values() if v["country"] != "Unknown"]
+        if countries:
+            primary_location = max(set(countries), key=countries.count)
+
     return {
         "agent": "monitor-analysis",
         "score": min(total_score, 100),
-        "threats": threats
+        "threats": threats,
+        "data_sharing": data_sharing,
+        "blocking_tips": blocking_tips,
+        "primary_location": primary_location,
+        "domain_locations": domain_locations,
     }
 
 
